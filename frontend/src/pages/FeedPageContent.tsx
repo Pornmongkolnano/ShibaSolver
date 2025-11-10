@@ -9,6 +9,7 @@ import { Notifications } from '@mui/icons-material';
 import CreatePostButton from '@/components/post/CreatePostButton';
 import CreatePostModal from '@/components/post/CreatePostModal';
 import { useFetchFeeds } from "@/hooks/useFetchFeeds"; // 1. ใช้ Hook นี้เป็นหลัก
+import SearchComponent from "@/components/topMenu/SearchComponent";
 
 // Type สำหรับ Response จาก API (ใช้ใน handleCreatePost)
 interface ApiResponse {
@@ -126,7 +127,7 @@ export default function Home() {
 
       {/* Feed content */}
       <div className={`flex flex-1 transition-all duration-300 ${showNotifications ? "ml-[20%]" : ""}`}>
-        <main className="flex-1 mb-10 px-[5%]">
+        <main className="flex-1 mb-10 px-[3%]">
           <h1 className="text-5xl font-bold p-4 mb-2 text-dark-900">
             Recent Posts
           </h1>
@@ -134,14 +135,19 @@ export default function Home() {
         </main>
         
         {/* Premium Sidebar */}
-        <aside className="w-80 mt-27 mr-5 self-start">
-          <Link href="/subscribe" className="block rounded-xl shadow-md overflow-hidden cursor-pointer hover:shadow-2xl/15">
+        <aside className="w-[25%] max-w-md mt-27 self-start mr-3">
+          {/* <Link href="/subscribe" className="block rounded-xl shadow-md overflow-hidden cursor-pointer hover:shadow-2xl/15">
             <img
               src="/image/premium-banner.png"
               alt="Get Premium - 20% off"
               className="w-full h-auto rounded-xl cursor-pointer"
             />
-          </Link>
+          </Link> */}
+          <SearchComponent onSelect={(x) => console.log(x)} />
+          <h1 className="text-2xl font-bold p-2 mt-3 text-dark-900">
+            Saved Posts
+          </h1>
+          
         </aside>
       </div>
       

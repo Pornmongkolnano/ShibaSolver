@@ -82,9 +82,9 @@ export default function TopMenu() {
       </Link>
 
       {/* Search bar with button */}
-      <div className="relative flex-grow mx-8 max-w-xl">
+      {/* <div className="relative flex-grow mx-8 max-w-xl">
         <SearchComponent onSelect={(x) => console.log(x)} />
-      </div>
+      </div> */}
       {/* <div className="relative flex-grow mx-8">
         <input
           type="text"
