@@ -2,12 +2,23 @@ const { Pool } = require('pg');
 
 const connectDB = async () => {
   try {
-    // test connection
+    const sslMode = process.env.DATABASE_SSL || (
+      process.env.NODE_ENV === 'production' ? 'require' : 'disable'
+    );
+    const ssl =
+      sslMode === 'disable'
+        ? false
+        : { rejectUnauthorized: sslMode !== 'no-verify' };
+
     const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false }
+      connectionString: process.env.DATABASE_URL,
+      ssl,
+      connectionTimeoutMillis: 10000,
     });
-    await pool.connect();
+
+    const client = await pool.connect();
+    client.release();
+
     console.log('PostgreSQL connected successfully');
     return pool;
   } catch (err) {

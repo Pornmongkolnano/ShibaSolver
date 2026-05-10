@@ -6,28 +6,7 @@ import theme from "@/theme/theme";
 import AddPhotoAlternateIcon from "@mui/icons-material/AddPhotoAlternate";
 import { useCommentActions } from "./useCommentActions";
 import RemoveCircleIcon from "@mui/icons-material/RemoveCircle";
-
-const CLOUD_NAME = "dvlsunwrx";
-const UPLOAD_PRESET = "Shiba_comment_image";
-
-async function uploadImageToCloudinary(file: File): Promise<string | null> {
-  const url = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`;
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("upload_preset", UPLOAD_PRESET);
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      body: formData,
-    });
-    if (!res.ok) throw new Error("Cloudinary upload failed");
-    const data = await res.json();
-    return data.secure_url || data.url || null;
-  } catch (err) {
-    console.error("Cloudinary upload error:", err);
-    return null;
-  }
-}
+import { uploadImageToCloudinary } from "@/utils/uploadImage";
 
 interface CommentEditorProps {
   initialContent: CommentContent;
@@ -89,8 +68,7 @@ export default function CommentEditor({
 
     // If there's a new file attached, upload it
     if (localAttachedFile) {
-      const uploadedUrl = await uploadImageToCloudinary(localAttachedFile);
-      finalImageUrl = uploadedUrl || "";
+      finalImageUrl = await uploadImageToCloudinary(localAttachedFile);
     }
 
     const savedContent = {

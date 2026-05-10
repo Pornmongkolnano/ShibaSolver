@@ -1,0 +1,19 @@
+{
+  "name": "shibasolver-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "install:all": "npm ci --prefix backend && npm ci --prefix frontend",
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "lint": "npm run lint --prefix frontend",
+    "build": "npm run build --prefix frontend",
+    "test": "npm test --prefix backend",
+    "db:validate": "DATABASE_URL=postgresql://user:password@localhost:5432/shibasolver npm run prisma:validate --prefix backend",
+    "audit": "npm audit --prefix backend --omit=dev --audit-level=high && npm audit --prefix frontend --omit=dev --audit-level=high",
+    "check": "npm run db:validate && npm run lint && npm run build && npm run test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ShibaIcon from "@/components/auth/ShibaIcon";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
@@ -103,12 +104,12 @@ export default function AdminLoginPage() {
 
         {/* Back to Main Site Link */}
         <div className="mt-6 pt-6 border-t border-gray-200">
-          <a
+          <Link
             href="/"
             className="text-purple-600 hover:text-purple-800 text-sm transition-colors cursor-pointer"
           >
             ← Back to Shiba Solver
-          </a>
+          </Link>
         </div>
       </div>
     </div>

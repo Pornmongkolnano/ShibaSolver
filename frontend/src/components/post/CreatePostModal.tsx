@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import MultiSelectSubject from './MultiSelectSubject';
 import { useCreatePost } from '@/hooks/useCreatePost';
 import { PostData } from './Post';
+import { uploadImageToCloudinary } from '@/utils/uploadImage';
 
 interface ApiResponse {
   success: boolean;
@@ -26,9 +27,6 @@ const subjectOptions = [
   "Economics", "Law", "Thai", "English", "Chinese", "Programming", "Others"
 ];
 
-const CLOUD_NAME = "dkhggwcub";
-const UPLOAD_PRESET = "unsigned_preset";
-
 const CreatePostModal = ({ onClose, onPostSubmit }: CreatePostModalProps) => {
   const { createPost, isCreating } = useCreatePost();
   const [title, setTitle] = useState('');
@@ -42,21 +40,7 @@ const CreatePostModal = ({ onClose, onPostSubmit }: CreatePostModalProps) => {
   const handleImageUpload = async (file: File) => {
     setUploading(true);
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('upload_preset', UPLOAD_PRESET);
-
-      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      const data = await res.json();
-      if (data.secure_url) {
-        setImageUrl(data.secure_url);
-      } else {
-        throw new Error('Image upload failed');
-      }
+      setImageUrl(await uploadImageToCloudinary(file));
     } catch (err) {
       alert(`Upload failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {

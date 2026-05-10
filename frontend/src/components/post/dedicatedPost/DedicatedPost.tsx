@@ -19,7 +19,7 @@ interface DedicatedPostProps {
   onPostDelete?: (postId: string) => void;
 }
 
-export interface DedicatedPostData extends PostData {}
+export type DedicatedPostData = PostData;
 
 const DedicatedPost = ({
   dedicatedPostData: initialData,
