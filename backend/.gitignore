@@ -1,6 +1,5 @@
 node_modules/*
 config/config.env
 .DS_Store
-__tests__/*
 snyk-report/*
 coverage/*
