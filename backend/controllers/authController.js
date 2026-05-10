@@ -1,29 +1,155 @@
+const bcrypt = require("bcryptjs");
 const { OAuth2Client } = require("google-auth-library");
-const jwt = require("jsonwebtoken");
+const prisma = require("../lib/prisma");
+const {
+  USER_COOKIE,
+  clearSessionCookie,
+  createSession,
+  readBearerOrCookie,
+  revokeToken,
+  setSessionCookie,
+} = require("../services/sessionService");
+const { publicUser } = require("../utils/userPresenter");
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-function signSessionJwt(payload) {
-  return jwt.sign(payload, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN || "7d",
+function normalizeEmail(email) {
+  return String(email || "").trim().toLowerCase();
+}
+
+function normalizeUsername(username) {
+  const value = String(username || "").trim();
+  return value.length > 0 ? value : null;
+}
+
+function validatePassword(password) {
+  return typeof password === "string" && password.length >= 8;
+}
+
+async function issueUserSession(req, res, user, statusCode = 200, extra = {}) {
+  const session = await createSession(user, req);
+  setSessionCookie(res, USER_COOKIE, session.token, session.maxAge);
+
+  return res.status(statusCode).json({
+    success: true,
+    ...extra,
+    data: publicUser(user),
   });
 }
 
-function cookieOpts() {
-  const isProd = (process.env.NODE_ENV || "development") === "production";
-  return {
-    httpOnly: true,
-    sameSite: isProd ? "none" : "lax",
-    secure: isProd,
-    domain: isProd ? process.env.COOKIE_DOMAIN : undefined,
-    path: "/",
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 วัน
-  };
-}
-
-exports.googleLogin = async (req, res) => {
+exports.registerWithPassword = async (req, res, next) => {
   try {
-    const { id_token } = req.body;
+    const {
+      email: rawEmail,
+      password,
+      username,
+      displayName,
+      avatarUrl,
+    } = req.body || {};
+    const email = normalizeEmail(rawEmail);
+
+    if (!email || !validatePassword(password)) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: "INVALID_REGISTER_PAYLOAD",
+          message: "Valid email and password of at least 8 characters are required",
+        },
+      });
+    }
+
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        error: { code: "EMAIL_IN_USE", message: "Email is already registered" },
+      });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    const user = await prisma.user.create({
+      data: {
+        email,
+        username: normalizeUsername(username),
+        displayName: displayName || null,
+        avatarUrl: avatarUrl || null,
+        identities: {
+          create: {
+            provider: "PASSWORD",
+            providerUserId: email,
+            passwordHash,
+          },
+        },
+      },
+    });
+
+    return issueUserSession(req, res, user, 201, { new_user: true });
+  } catch (err) {
+    if (err.code === "P2002") {
+      return res.status(409).json({
+        success: false,
+        error: {
+          code: "UNIQUE_CONSTRAINT",
+          message: "Email or username is already in use",
+        },
+      });
+    }
+    next(err);
+  }
+};
+
+exports.loginWithPassword = async (req, res, next) => {
+  try {
+    const { email: rawEmail, password } = req.body || {};
+    const email = normalizeEmail(rawEmail);
+
+    if (!email || typeof password !== "string") {
+      return res.status(400).json({
+        success: false,
+        error: { code: "INVALID_LOGIN_PAYLOAD", message: "Email and password are required" },
+      });
+    }
+
+    const identity = await prisma.authIdentity.findUnique({
+      where: {
+        provider_providerUserId: {
+          provider: "PASSWORD",
+          providerUserId: email,
+        },
+      },
+      include: { user: true },
+    });
+
+    const ok =
+      identity?.passwordHash &&
+      (await bcrypt.compare(password, identity.passwordHash));
+
+    if (!identity || !ok || identity.user.status !== "ACTIVE") {
+      return res.status(401).json({
+        success: false,
+        error: { code: "INVALID_CREDENTIALS", message: "Invalid credentials" },
+      });
+    }
+
+    return issueUserSession(req, res, identity.user);
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.googleLogin = async (req, res, next) => {
+  try {
+    if (!process.env.GOOGLE_CLIENT_ID) {
+      return res.status(500).json({
+        success: false,
+        error: {
+          code: "GOOGLE_AUTH_NOT_CONFIGURED",
+          message: "GOOGLE_CLIENT_ID is not configured",
+        },
+      });
+    }
+
+    const { id_token } = req.body || {};
     if (!id_token) {
       return res.status(400).json({
         success: false,
@@ -31,105 +157,102 @@ exports.googleLogin = async (req, res) => {
       });
     }
 
-    // verify id_token กับ Google
     const ticket = await googleClient.verifyIdToken({
       idToken: id_token,
       audience: process.env.GOOGLE_CLIENT_ID,
     });
     const payload = ticket.getPayload();
-    const { sub, email, name, picture, email_verified } = payload;
+    const email = normalizeEmail(payload.email);
 
-    if (!email_verified) {
+    if (!payload.email_verified || !email || !payload.sub) {
       return res.status(401).json({
         success: false,
         error: {
           code: "EMAIL_NOT_VERIFIED",
-          message: "Google email not verified",
+          message: "Google email is not verified",
         },
       });
     }
 
-    const pool = req.app.locals.pool;
-
-    // หา user ด้วย google_account (เก็บ sub)
-    let user = (
-      await pool.query("SELECT * FROM users WHERE google_account=$1", [sub])
-    ).rows[0];
-
-    if (!user) {
-      user = (
-        await pool.query(
-          `INSERT INTO users (google_account, email, display_name, profile_picture)
-         VALUES ($1,$2,$3,$4)
-         RETURNING *`,
-          [sub, email, name || null, picture || null]
-        )
-      ).rows[0];
-      const token = signSessionJwt({ uid: user.user_id });
-      res.cookie("ss_token", token, cookieOpts());
-
-      return res.status(201).json({
-        success: true,
-        new_user: true, // <<< ใช้เช็คฝั่ง FE
-        data: {
-          user_id: user.user_id,
-          email: user.email,
-          display_name: user.display_name,
-          avatar_url: user.profile_picture,
+    const existingIdentity = await prisma.authIdentity.findUnique({
+      where: {
+        provider_providerUserId: {
+          provider: "GOOGLE",
+          providerUserId: payload.sub,
         },
-      });
-    } else {
-      // อัปเดตข้อมูลล่าสุดจาก Google
-      await pool.query(
-        `UPDATE users
-            SET email=$2,
-                updated_at=now()
-         WHERE google_account=$1
-         RETURNING *`,
-        [sub, email]
-      );
-      const token = signSessionJwt({ uid: user.user_id });
-      res.cookie("ss_token", token, cookieOpts());
-
-      return res.status(200).json({
-        success: true,
-        new_user: false, // <<< ใช้เช็คฝั่ง FE
-        data: {
-          user_id: user.user_id,
-          email: user.email,
-          display_name: user.display_name,
-          avatar_url: user.profile_picture,
-        },
-      });
-    }
-  } catch (err) {
-    console.error(err);
-    return res.status(401).json({
-      success: false,
-      error: { code: "INVALID_ID_TOKEN", message: "Invalid Google id_token" },
+      },
+      include: { user: true },
     });
+
+    if (existingIdentity) {
+      const user = await prisma.user.update({
+        where: { id: existingIdentity.userId },
+        data: {
+          email,
+          displayName: existingIdentity.user.displayName || payload.name || null,
+          avatarUrl: payload.picture || existingIdentity.user.avatarUrl || null,
+        },
+      });
+      return issueUserSession(req, res, user, 200, { new_user: false });
+    }
+
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    const user = existingUser
+      ? await prisma.user.update({
+          where: { id: existingUser.id },
+          data: {
+            displayName: existingUser.displayName || payload.name || null,
+            avatarUrl: payload.picture || existingUser.avatarUrl || null,
+            identities: {
+              create: {
+                provider: "GOOGLE",
+                providerUserId: payload.sub,
+              },
+            },
+          },
+        })
+      : await prisma.user.create({
+          data: {
+            email,
+            displayName: payload.name || null,
+            avatarUrl: payload.picture || null,
+            identities: {
+              create: {
+                provider: "GOOGLE",
+                providerUserId: payload.sub,
+              },
+            },
+          },
+        });
+
+    return issueUserSession(req, res, user, existingUser ? 200 : 201, {
+      new_user: !existingUser,
+    });
+  } catch (err) {
+    if (err.message?.includes("Wrong recipient")) {
+      return res.status(401).json({
+        success: false,
+        error: { code: "INVALID_ID_TOKEN", message: "Invalid Google id_token" },
+      });
+    }
+    next(err);
   }
 };
 
-exports.logout = (req, res) => {
-  res.cookie("ss_token", "", { ...cookieOpts(), maxAge: 0 });
-  res.json({ success: true });
+exports.logout = async (req, res, next) => {
+  try {
+    const token = readBearerOrCookie(req, USER_COOKIE);
+    await revokeToken(token);
+    clearSessionCookie(res, USER_COOKIE);
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
 };
 
-
-
-exports.getMe = async (req, res, next) => {
-  try {
-    const id  = req.user.uid;
-    if (!/^\d+$/.test(id)) return res.status(400).json({ success:false, message:'Invalid id' });
-
-    const pool = req.app.locals.pool;
-    const { rows } = await pool.query(
-      `SELECT * FROM public.users 
-      WHERE user_id = $1`, [id]
-    );
-    if (rows.length === 0) return res.status(404).json({ success:false, message:'User not found' });
-
-    return res.status(200).json({ success:true, data: rows[0] });
-  } catch (err) { next(err); }
+exports.getMe = async (req, res) => {
+  return res.status(200).json({
+    success: true,
+    data: publicUser(req.currentUser),
+  });
 };

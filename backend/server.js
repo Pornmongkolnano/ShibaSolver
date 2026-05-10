@@ -11,7 +11,7 @@ const swaggerUi = require('swagger-ui-express');
 const swaggerDocument = require('./docs/openapi');
 
 loadEnv();
-requiredEnv(["DATABASE_URL", "JWT_SECRET"]);
+requiredEnv(["DATABASE_URL"]);
 
 const adminAuthRouter = require('./routers/adminAuthRouter');
 const adminsRouter = require("./routers/adminsRouter");

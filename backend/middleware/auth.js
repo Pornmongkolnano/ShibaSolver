@@ -1,42 +1,43 @@
-const jwt = require("jsonwebtoken");
+const {
+  USER_COOKIE,
+  getSessionUser,
+  readBearerOrCookie,
+} = require("../services/sessionService");
 
-exports.requireAuth = (req, res, next) => {
+function attachUser(req, user) {
+  req.currentUser = user;
+  req.user = {
+    id: user.id,
+    uid: user.id,
+    role: user.role,
+    status: user.status,
+  };
+}
+
+exports.requireAuth = async (req, res, next) => {
   try {
-    const bearer = req.headers.authorization;
-    const cookieToken = req.cookies?.ss_token;
+    const token = readBearerOrCookie(req, USER_COOKIE);
+    const user = await getSessionUser(token);
 
-    let token = null;
-    if (bearer?.startsWith("Bearer ")) token = bearer.slice(7);
-    else if (cookieToken) token = cookieToken;
-
-    if (!token) {
+    if (!user) {
       return res.status(401).json({
         success: false,
-        error: { code: "UNAUTHORIZED", message: "Missing session token" },
+        error: { code: "UNAUTHORIZED", message: "Missing or invalid session" },
       });
     }
 
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = { uid: payload.uid };
+    attachUser(req, user);
     next();
   } catch (err) {
-    return res.status(401).json({
-      success: false,
-      error: { code: "UNAUTHORIZED", message: "Invalid or expired session" },
-    });
+    next(err);
   }
 };
-//อนุญาตให้ผู้ใช้ที่ไม่ได้ล็อกอินเข้ามาดูได้ แต่ถ้าล็อกอินเข้ามาจะดูเฉลยได้
-exports.optionalAuth = (req, _res, next) => {
+
+exports.optionalAuth = async (req, _res, next) => {
   try {
-    const bearer = req.headers.authorization;
-    const cookieToken = req.cookies?.ss_token;
-    let token = null;
-    if (bearer?.startsWith("Bearer ")) token = bearer.slice(7);
-    else if (cookieToken) token = cookieToken;
-    if (!token) return next();
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = { uid: payload.uid };
+    const token = readBearerOrCookie(req, USER_COOKIE);
+    const user = await getSessionUser(token);
+    if (user) attachUser(req, user);
     next();
   } catch {
     next();
