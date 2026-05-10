@@ -41,7 +41,7 @@ export default function CommentSection({ initialComments, postId }: Props) {
     setIsSubmitting(true);
 
     try {
-      await handleCreateNewComment(Number(postId), text, imageUrl);
+      await handleCreateNewComment(String(postId), text, imageUrl);
 
       await new Promise((resolve) => setTimeout(resolve, 500));
 

@@ -6,10 +6,10 @@ import { useEffect, useState } from "react";
 export type SortOption = "latest" | "popular" | "oldest" | "ratio";
 
 export type PostComment = {
-  comment_id: number;
-  user_id: number;
-  post_id: number;
-  parent_comment: number | null;
+  comment_id: string;
+  user_id: string;
+  post_id: string;
+  parent_comment: string | null;
   text: string;
   comment_image: string | null;
   is_solution: boolean;
@@ -28,7 +28,7 @@ type AccessControlledResponse = {
   restricted?: boolean;
   reason?: "LOGIN_REQUIRED" | "PREMIUM_REQUIRED" | null;
   post?: {
-    post_id: number;
+    post_id: string;
     created_at: string;
     is_recent_30d: boolean;
   } | null;
@@ -80,9 +80,9 @@ export default function usePostComments(
           await new Promise((r) => setTimeout(r, 200));
           const mock: PostComment[] = [
             {
-              comment_id: 1,
-              user_id: 1,
-              post_id: Number(postId),
+              comment_id: "mock-comment-1",
+              user_id: "mock-user-1",
+              post_id: String(postId),
               parent_comment: null,
               text: "Mock comment",
               comment_image: null,
@@ -134,10 +134,10 @@ export default function usePostComments(
         }
 
         const list = (payload.data ?? []).map((c: any) => ({
-          comment_id: Number(c.comment_id),
-          user_id: Number(c.user_id),
-          post_id: Number(c.post_id),
-          parent_comment: c.parent_comment == null ? null : Number(c.parent_comment),
+          comment_id: String(c.comment_id),
+          user_id: String(c.user_id),
+          post_id: String(c.post_id),
+          parent_comment: c.parent_comment == null ? null : String(c.parent_comment),
           text: String(c.text ?? ""),
           comment_image: c.comment_image ?? null,
           is_solution: Boolean(c.is_solution),

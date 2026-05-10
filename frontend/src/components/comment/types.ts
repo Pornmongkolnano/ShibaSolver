@@ -1,7 +1,7 @@
 export interface CommentData {
     id: string; 
     author: {
-        user_id: number;
+        user_id: string;
         display_name?: string | null;
         profile_picture: string;
     };
@@ -14,7 +14,7 @@ export interface CommentData {
     is_solution: boolean;
     updated_at?: string;
     is_edited?: boolean;
-    parent_comment: number | null; // ADD THIS - ID of parent comment if this is a reply
+    parent_comment: string | null; // ADD THIS - ID of parent comment if this is a reply
 }
 
 export interface CommentContent {
@@ -89,8 +89,8 @@ export interface CommentActions {
     handleToggleReplies: () => void;
     handleToggleNewReply: () => void;
     handleCancelReply: () => void;
-    handleCreateNewReply : (post_id: number, replyText: string, attachment?: string | null) => Promise<boolean>;
-    handleCreateNewComment: (post_id: number, commentText: string, attachment?: string | null) => Promise<boolean>;
+    handleCreateNewReply : (post_id: string, replyText: string, attachment?: string | null) => Promise<boolean>;
+    handleCreateNewComment: (post_id: string, commentText: string, attachment?: string | null) => Promise<boolean>;
     handleAttachImage: (file: File | null) => Promise<string | null>;
     handleRemoveAttachment: () => void;
     handleMenuOpen: (event: React.MouseEvent<HTMLElement>) => void;

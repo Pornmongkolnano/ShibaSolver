@@ -57,7 +57,7 @@ export const useCommentActions = (
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           target_type,
-          target_id: Number(target_id),
+          target_id,
           rating_type,
         }),
       });
@@ -87,7 +87,7 @@ export const useCommentActions = (
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           target_type,
-          target_id: Number(target_id),
+          target_id,
         }),
       });
 
@@ -254,21 +254,20 @@ export const useCommentActions = (
   };
 
   const handleCreateNewReply = async (
-    postid: number,
+    postid: string,
     replyText: string,
     attachment: string | null = null
   ) => {
-    const commentNumericId = Number(commentId);
     try {
       const res = await fetch(
-        `${BASE_URL}/api/v1/comments/${commentNumericId}/replies`,
+        `${BASE_URL}/api/v1/comments/${encodeURIComponent(commentId)}/replies`,
         {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             post_id: postid,
-            parent_comment: Number(commentId),
+            parent_comment: commentId,
             text: replyText,
             comment_image: attachment || null,
           }),
@@ -290,7 +289,7 @@ export const useCommentActions = (
   };
 
   const handleCreateNewComment = async (
-    postid: number,
+    postid: string,
     commentText: string,
     attachment: string | null = null
   ) => {
@@ -355,7 +354,7 @@ export const useCommentActions = (
       console.log("Request body being sent:", requestBody);
 
       const res = await fetch(
-        `${BASE_URL}/api/v1/comments/${Number(commentId)}`,
+        `${BASE_URL}/api/v1/comments/${encodeURIComponent(commentId)}`,
         {
           method: "PUT",
           credentials: "include",
@@ -434,7 +433,7 @@ export const useCommentActions = (
     handleMenuClose();
     try {
       const res = await fetch(
-        `${BASE_URL}/api/v1/comments/${Number(commentId)}`,
+        `${BASE_URL}/api/v1/comments/${encodeURIComponent(commentId)}`,
         {
           method: "DELETE",
           credentials: "include",
@@ -455,7 +454,7 @@ export const useCommentActions = (
     handleMenuClose();
     try {
       const res = await fetch(
-        `${BASE_URL}/api/v1/comments/${Number(commentId)}/solution`,
+        `${BASE_URL}/api/v1/comments/${encodeURIComponent(commentId)}/solution`,
         {
           method: "PATCH",
           credentials: "include",

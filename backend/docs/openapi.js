@@ -83,25 +83,25 @@ module.exports = {
         name: 'postId',
         in: 'path',
         required: true,
-        schema: { type: 'integer', minimum: 1 },
+        schema: { type: 'string' },
       },
       CommentId: {
         name: 'commentId',
         in: 'path',
         required: true,
-        schema: { type: 'integer', minimum: 1 },
+        schema: { type: 'string' },
       },
       CommentResourceId: {
         name: 'id',
         in: 'path',
         required: true,
-        schema: { type: 'integer', minimum: 1 },
+        schema: { type: 'string' },
       },
       UserId: {
         name: 'userId',
         in: 'path',
         required: true,
-        schema: { type: 'integer', minimum: 1 },
+        schema: { type: 'string' },
       },
       Username: {
         name: 'username',
@@ -113,13 +113,13 @@ module.exports = {
         name: 'id',
         in: 'path',
         required: true,
-        schema: { type: 'integer', minimum: 1 },
+        schema: { type: 'string' },
       },
       ReportId: {
         name: 'reportId',
         in: 'path',
         required: true,
-        schema: { type: 'integer', minimum: 1 },
+        schema: { type: 'string' },
       },
     },
     schemas: {
@@ -140,7 +140,7 @@ module.exports = {
       UserPublic: {
         type: 'object',
         properties: {
-          user_id: { type: 'integer' },
+          user_id: { type: 'string' },
           user_name: { type: 'string' },
           display_name: { type: 'string', nullable: true },
           profile_picture: { type: 'string', nullable: true },
@@ -149,7 +149,7 @@ module.exports = {
       PublicUserProfile: {
         type: 'object',
         properties: {
-          user_id: { type: 'integer' },
+          user_id: { type: 'string' },
           user_name: { type: 'string' },
           display_name: { type: 'string', nullable: true },
           profile_picture: { type: 'string', nullable: true },
@@ -168,7 +168,7 @@ module.exports = {
       UserDetail: {
         type: 'object',
         properties: {
-          user_id: { type: 'integer' },
+          user_id: { type: 'string' },
           email: { type: 'string', format: 'email', nullable: true },
           user_name: { type: 'string', nullable: true },
           display_name: { type: 'string', nullable: true },
@@ -194,7 +194,7 @@ module.exports = {
       AdminSummary: {
         type: 'object',
         properties: {
-          admin_id: { type: 'integer' },
+          admin_id: { type: 'string' },
           name: { type: 'string' },
           email: { type: 'string', format: 'email' },
         },
@@ -202,7 +202,7 @@ module.exports = {
       BannedUserSummary: {
         type: 'object',
         properties: {
-          user_id: { type: 'integer' },
+          user_id: { type: 'string' },
           user_name: { type: 'string', nullable: true },
           display_name: { type: 'string', nullable: true },
           profile_picture: { type: 'string', nullable: true },
@@ -217,7 +217,7 @@ module.exports = {
       Post: {
         type: 'object',
         properties: {
-          post_id: { type: 'integer' },
+          post_id: { type: 'string' },
           title: { type: 'string' },
           description: { type: 'string' },
           post_image: { type: 'string', nullable: true },
@@ -246,8 +246,8 @@ module.exports = {
         type: 'object',
         description: 'Raw post row returned by /api/v1/posts and mutations.',
         properties: {
-          post_id: { type: 'integer' },
-          user_id: { type: 'integer' },
+          post_id: { type: 'string' },
+          user_id: { type: 'string' },
           title: { type: 'string' },
           description: { type: 'string' },
           post_image: { type: 'string', nullable: true },
@@ -261,10 +261,10 @@ module.exports = {
       CommentSummary: {
         type: 'object',
         properties: {
-          comment_id: { type: 'integer' },
-          user_id: { type: 'integer' },
-          post_id: { type: 'integer' },
-          parent_comment: { type: 'integer', nullable: true },
+          comment_id: { type: 'string' },
+          user_id: { type: 'string' },
+          post_id: { type: 'string' },
+          parent_comment: { type: 'string', nullable: true },
           text: { type: 'string' },
           comment_image: { type: 'string', nullable: true },
           is_solution: { type: 'boolean' },
@@ -280,10 +280,10 @@ module.exports = {
         type: 'object',
         description: 'Comment row returned by create/update/solution endpoints.',
         properties: {
-          comment_id: { type: 'integer' },
-          user_id: { type: 'integer' },
-          post_id: { type: 'integer' },
-          parent_comment: { type: 'integer', nullable: true },
+          comment_id: { type: 'string' },
+          user_id: { type: 'string' },
+          post_id: { type: 'string' },
+          parent_comment: { type: 'string', nullable: true },
           text: { type: 'string' },
           comment_image: { type: 'string', nullable: true },
           is_solution: { type: 'boolean' },
@@ -294,7 +294,7 @@ module.exports = {
       Notification: {
         type: 'object',
         properties: {
-          notification_id: { type: 'integer' },
+          notification_id: { type: 'string' },
           notification_type: { type: 'string' },
           message: { type: 'string' },
           link: { type: 'string', nullable: true },
@@ -305,13 +305,13 @@ module.exports = {
       Report: {
         type: 'object',
         properties: {
-          report_id: { type: 'integer' },
-          reporter_id: { type: 'integer' },
+          report_id: { type: 'string' },
+          reporter_id: { type: 'string' },
           target_type: {
             type: 'string',
             enum: ['user', 'post', 'comment'],
           },
-          target_id: { type: 'integer' },
+          target_id: { type: 'string' },
           reason: { type: 'string' },
           status: {
             type: 'string',
@@ -323,9 +323,9 @@ module.exports = {
       AccountReport: {
         type: 'object',
         properties: {
-          report_id: { type: 'integer' },
-          reporter_id: { type: 'integer' },
-          target_id: { type: 'integer' },
+          report_id: { type: 'string' },
+          reporter_id: { type: 'string' },
+          target_id: { type: 'string' },
           reporter_name: { type: 'string' },
           target_name: { type: 'string' },
           target_username: { type: 'string' },
@@ -340,9 +340,9 @@ module.exports = {
       PostReport: {
         type: 'object',
         properties: {
-          report_id: { type: 'integer' },
-          reporter_id: { type: 'integer' },
-          target_id: { type: 'integer' },
+          report_id: { type: 'string' },
+          reporter_id: { type: 'string' },
+          target_id: { type: 'string' },
           reporter_name: { type: 'string' },
           post_title: { type: 'string' },
           post_owner_name: { type: 'string' },
@@ -358,9 +358,9 @@ module.exports = {
       CommentReport: {
         type: 'object',
         properties: {
-          report_id: { type: 'integer' },
-          reporter_id: { type: 'integer' },
-          target_id: { type: 'integer' },
+          report_id: { type: 'string' },
+          reporter_id: { type: 'string' },
+          target_id: { type: 'string' },
           reporter_name: { type: 'string' },
           comment_text: { type: 'string' },
           comment_owner_name: { type: 'string' },
@@ -376,13 +376,13 @@ module.exports = {
       RatingSummary: {
         type: 'object',
         properties: {
-          id: { type: 'integer', nullable: true },
+          id: { type: 'string', nullable: true },
           target_type: {
             type: 'string',
             enum: ['post', 'comment'],
             nullable: true,
           },
-          target_id: { type: 'integer', nullable: true },
+          target_id: { type: 'string', nullable: true },
           likes: { type: 'integer' },
           dislikes: { type: 'integer' },
           my_rating: {
@@ -458,9 +458,9 @@ module.exports = {
         type: 'object',
         required: ['post_id', 'text'],
         properties: {
-          post_id: { type: 'integer' },
+          post_id: { type: 'string' },
           text: { type: 'string' },
-          parent_comment: { type: 'integer', nullable: true },
+          parent_comment: { type: 'string', nullable: true },
           comment_image: { type: 'string', nullable: true },
         },
       },
@@ -484,7 +484,7 @@ module.exports = {
         required: ['target_type', 'target_id', 'rating_type'],
         properties: {
           target_type: { type: 'string', enum: ['post', 'comment'] },
-          target_id: { type: 'integer' },
+          target_id: { type: 'string' },
           rating_type: { type: 'string', enum: ['like', 'dislike'] },
         },
       },
@@ -493,14 +493,14 @@ module.exports = {
         required: ['target_type', 'target_id'],
         properties: {
           target_type: { type: 'string', enum: ['post', 'comment'] },
-          target_id: { type: 'integer' },
+          target_id: { type: 'string' },
         },
       },
       ReportAccountRequest: {
         type: 'object',
         required: ['target_id', 'reason'],
         properties: {
-          target_id: { type: 'integer' },
+          target_id: { type: 'string' },
           reason: { type: 'string', minLength: 3 },
         },
       },
@@ -509,7 +509,7 @@ module.exports = {
         required: ['target_type', 'target_id', 'reason'],
         properties: {
           target_type: { type: 'string', enum: ['post', 'comment'] },
-          target_id: { type: 'integer' },
+          target_id: { type: 'string' },
           reason: { type: 'string', minLength: 3 },
         },
       },
@@ -531,7 +531,7 @@ module.exports = {
           post: {
             type: 'object',
             properties: {
-              post_id: { type: 'integer' },
+              post_id: { type: 'string' },
               created_at: { type: 'string', format: 'date-time' },
               is_recent_30d: { type: 'boolean' },
             },

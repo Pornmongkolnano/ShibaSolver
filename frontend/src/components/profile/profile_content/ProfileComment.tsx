@@ -15,7 +15,7 @@ export interface profileCommentData {
   post_id: string;
   post_title: string;
   author: {
-    user_id: number;
+    user_id: string;
     display_name?: string | null;
     profile_picture: string;
   };

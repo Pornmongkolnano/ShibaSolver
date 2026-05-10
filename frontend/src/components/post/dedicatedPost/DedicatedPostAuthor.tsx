@@ -84,7 +84,7 @@ const PostAuthor = ({
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ target_type, target_id: Number(target_id), rating_type }),
+      body: JSON.stringify({ target_type, target_id, rating_type }),
     });
 
     return await res.json();
@@ -95,7 +95,7 @@ const PostAuthor = ({
       method: 'DELETE',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ target_type, target_id: Number(target_id) }),
+      body: JSON.stringify({ target_type, target_id }),
     });
 
     return await res.json();

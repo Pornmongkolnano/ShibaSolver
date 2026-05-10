@@ -81,7 +81,7 @@ const PostAuthor = ({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         target_type,
-        target_id: Number(target_id),
+        target_id,
         rating_type,
       }),
     });
@@ -97,7 +97,7 @@ const PostAuthor = ({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         target_type,
-        target_id: Number(target_id),
+        target_id,
       }),
     });
 

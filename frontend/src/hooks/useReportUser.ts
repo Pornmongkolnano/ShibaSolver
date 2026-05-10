@@ -3,7 +3,7 @@ import { useState } from 'react';
 
 // 1. สร้าง Interface Payload ใหม่ให้ตรงกับ API (ไม่มี target_type)
 interface ReportPayload {
-  target_id: number;
+  target_id: string;
   reason: string;
 }
 
@@ -21,8 +21,8 @@ export const useReportUser = () => {
     setIsReporting(true);
     setError(null);
 
-    const targetIdNumber = Number(userId);
-    if (isNaN(targetIdNumber) || targetIdNumber <= 0) {
+    const targetId = String(userId || '').trim();
+    if (!targetId) {
       const errMsg = "Invalid User ID provided for reporting.";
       setError(errMsg);
       setIsReporting(false);
@@ -31,7 +31,7 @@ export const useReportUser = () => {
 
     // 2. สร้าง Payload ใหม่ (มีแค่ target_id และ reason)
     const payload: ReportPayload = {
-      target_id: targetIdNumber,
+      target_id: targetId,
       reason: reason,
     };
 
