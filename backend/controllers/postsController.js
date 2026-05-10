@@ -1,459 +1,397 @@
-/**
- * @desc    Get a single post by ID
- * @route   GET /api/v1/posts/:postId 
- * @access  Private
- * @return {post_id, title, description, post_image, is_solved, created_at, poster_id, tags: []}
- */
-exports.getPost = async (req, res, next) => {
-  try {
-    const pool = req.app.locals.pool;
-    const postId = Number(req.params.postId);
-    const userId = req.user?.uid || null;
+const prisma = require("../lib/prisma");
+const { asyncHandler, createError, sendCreated, sendSuccess } = require("../utils/apiResponse");
+const { publicPost } = require("../utils/apiPresenters");
+const {
+  getAuthUserId,
+  parseLimitOffset,
+  readLimitedText,
+  readStringId,
+} = require("../utils/request");
 
-    if (!Number.isInteger(postId) || postId <= 0) {
-      return res.status(400).json({ success: false, message: "Invalid postId" });
-    }
-
-    const sql = `
-      SELECT 
-        p.post_id, p.title, p.description, p.post_image, p.is_solved, p.created_at,p.is_deleted,
-        json_build_object(
-          'user_id', u.user_id,
-          'display_name', u.display_name,
-          'profile_picture', u.profile_picture
-        ) AS author,
-        COALESCE(SUM(CASE WHEN r_all.rating_type = 'like' THEN 1 ELSE 0 END), 0)    AS likes,
-        COALESCE(SUM(CASE WHEN r_all.rating_type = 'dislike' THEN 1 ELSE 0 END), 0) AS dislikes,
-        CASE 
-          WHEN MAX(CASE WHEN r_me.rating_type = 'like' THEN 1 ELSE 0 END) = 1 THEN 'like'
-          WHEN MAX(CASE WHEN r_me.rating_type = 'dislike' THEN 1 ELSE 0 END) = 1 THEN 'dislike'
-          ELSE NULL
-        END AS my_rating
-      FROM posts p
-      JOIN users u ON u.user_id = p.user_id
-      LEFT JOIN ratings r_all ON r_all.post_id = p.post_id
-      LEFT JOIN ratings r_me ON r_me.post_id = p.post_id AND r_me.user_id = $2
-      WHERE p.post_id = $1 AND p.is_deleted = FALSE
-      GROUP BY p.post_id, u.user_id, u.display_name, u.profile_picture
-      LIMIT 1;
-    `;
-
-    const postRes = await pool.query(sql, [postId, userId]);
-    if (postRes.rowCount === 0) {
-      return res.status(404).json({ success: false, message: "Post not found" });
-    }
-    const post = postRes.rows[0];
-
-    const tagSql = `
-      SELECT t.tag_name 
-      FROM post_tags pt
-      JOIN tags t ON t.tag_id = pt.tag_id
-      WHERE pt.post_id = $1;
-    `;
-    const tagRes = await pool.query(tagSql, [postId]);
-    post.tags = tagRes.rows.map(row => row.tag_name);
-
-    return res.status(200).json({ success: true, data: post });
-  } catch (e) {
-    console.error(e);
-    next(e);
-  }
+const POST_INCLUDE = {
+  author: true,
+  tags: { include: { tag: true } },
+  ratings: { select: { userId: true, value: true } },
 };
 
+function getOptionalUserId(req) {
+  return req.currentUser?.id || req.user?.id || req.user?.uid || null;
+}
+
+function normalizeTags(rawTags, { required = false } = {}) {
+  if (!Array.isArray(rawTags)) {
+    if (required) {
+      throw createError(400, "INVALID_TAGS", "Tags must be a non-empty array");
+    }
+    return undefined;
+  }
+
+  const tags = [
+    ...new Set(
+      rawTags
+        .map((tag) => {
+          if (typeof tag === "string") return tag.trim();
+          return String(tag?.name || tag?.tag_name || "").trim();
+        })
+        .filter(Boolean)
+    ),
+  ];
+
+  if (required && tags.length === 0) {
+    throw createError(400, "INVALID_TAGS", "Tags must be a non-empty array");
+  }
+
+  if (tags.length > 20) {
+    throw createError(400, "INVALID_TAGS", "A post can have at most 20 tags");
+  }
+
+  return tags;
+}
+
+function readOptionalNullableString(body, fields) {
+  for (const field of fields) {
+    if (Object.prototype.hasOwnProperty.call(body || {}, field)) {
+      const value = body[field];
+      if (value === null || value === undefined) return null;
+      const text = String(value).trim();
+      return text || null;
+    }
+  }
+  return undefined;
+}
+
+function readOptionalBoolean(value, fieldName) {
+  if (value === undefined) return undefined;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true") return true;
+    if (normalized === "false") return false;
+  }
+  throw createError(400, "INVALID_BOOLEAN", `${fieldName} must be a boolean`);
+}
+
+async function assertActiveUser(userId) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, status: true },
+  });
+
+  if (!user) {
+    throw createError(404, "USER_NOT_FOUND", "User not found");
+  }
+
+  if (user.status !== "ACTIVE") {
+    throw createError(403, "ACCOUNT_DISABLED", "Your account cannot perform this action");
+  }
+}
+
+async function attachTags(tx, postId, tags) {
+  for (const name of tags) {
+    const tag = await tx.tag.upsert({
+      where: { name },
+      update: {},
+      create: { name },
+      select: { id: true },
+    });
+
+    await tx.postTag.create({
+      data: { postId, tagId: tag.id },
+    });
+  }
+}
+
+async function findVisiblePost(postId) {
+  return prisma.post.findFirst({
+    where: { id: postId, deletedAt: null },
+    include: POST_INCLUDE,
+  });
+}
+
+/**
+ * @desc    Get a single post by ID
+ * @route   GET /api/v1/posts/:postId
+ * @access  Public with optional auth
+ */
+exports.getPost = asyncHandler(async (req, res) => {
+  const postId = readStringId(req.params.postId, "postId");
+  const currentUserId = getOptionalUserId(req);
+  const post = await findVisiblePost(postId);
+
+  if (!post) {
+    throw createError(404, "POST_NOT_FOUND", "Post not found");
+  }
+
+  return sendSuccess(res, {
+    data: publicPost(post, { currentUserId }),
+  });
+});
 
 /**
  * @desc    Create a new post
  * @route   POST /api/v1/posts
  * @access  Private
- * @request {user_id, title, description, post_image, tags: [tag1, tag2, ...]}
  */
-exports.createPost = async (req, res, next) => {
-  const pool = req.app.locals.pool;
-  const client = await pool.connect();
-  try {
-    const user_id = req.user.uid;
-    const userStateRes = await pool.query(
-      `SELECT user_state FROM users WHERE user_id = $1`,
-      [user_id]
-    );
-    if (userStateRes.rowCount === 0) {
-      return res.status(404).json({ success: false, message: "User not found" });
-    }
+exports.createPost = asyncHandler(async (req, res) => {
+  const userId = getAuthUserId(req);
+  await assertActiveUser(userId);
 
-    const state = userStateRes.rows[0].user_state;
-    if (state === 'ban') {
-      return res.status(403).json({ success: false, message: "Your account has been banned" });
-    }
-    const { title, description, post_image, tags } = req.body;
+  const title = readLimitedText(req.body?.title, "title", { max: 180 });
+  const body = readLimitedText(req.body?.description ?? req.body?.body, "description", {
+    max: 10000,
+  });
+  const imageUrl = readOptionalNullableString(req.body, ["post_image", "imageUrl"]);
+  const tags = normalizeTags(req.body?.tags, { required: true });
+  const isSolved = readOptionalBoolean(req.body?.is_solved ?? req.body?.isSolved, "is_solved") || false;
 
-    if (!title || !description) {
-      return res.status(400).json({ success: false, message: "Title and description are required" });
-    }
-    if (!Array.isArray(tags) || tags.length === 0) {
-      return res.status(400).json({ success: false, message: "Tags must be a non-empty array" });
-    }
+  const post = await prisma.$transaction(async (tx) => {
+    const created = await tx.post.create({
+      data: {
+        authorId: userId,
+        title,
+        body,
+        imageUrl,
+        isSolved,
+      },
+      select: { id: true },
+    });
 
-    await client.query("BEGIN");
+    await attachTags(tx, created.id, tags);
 
-    // Check if all tags exist
-    const tagCheckSql = `SELECT tag_name FROM public.tags WHERE tag_name = ANY($1)`;
-    const { rows: foundTags } = await client.query(tagCheckSql, [tags]);
-    const foundTagNames = foundTags.map(row => row.tag_name);
-    const missingTags = tags.filter(tag => !foundTagNames.includes(tag));
-    if (missingTags.length > 0) {
-      await client.query("ROLLBACK");
-      return res.status(400).json({
-        success: false,
-        message: `Tag(s) do not exist: ${missingTags.join(", ")}`
-      });
-    }
+    return tx.post.findUnique({
+      where: { id: created.id },
+      include: POST_INCLUDE,
+    });
+  });
 
-    // Insert post
-    const sql = `
-      INSERT INTO public.posts (user_id, title, description, post_image)
-      VALUES ($1, $2, $3, $4)
-      RETURNING post_id, user_id, title, description, post_image, created_at
-    `;
-    const { rows } = await client.query(sql, [user_id, title, description, post_image || null]);
-    const post = rows[0];
-
-    // Insert tags
-    const tagInsertSql = `
-      INSERT INTO public.post_tags (post_id, tag_id)
-      SELECT $1, tag_id FROM public.tags WHERE tag_name = ANY($2)
-      ON CONFLICT (post_id, tag_id) DO NOTHING
-    `;
-    await client.query(tagInsertSql, [post.post_id, tags]);
-
-    await client.query("COMMIT");
-    return res.status(201).json({ success: true, data: post, tags: tags });
-  } catch (e) {
-    await client.query("ROLLBACK");
-    next(e);
-  } finally {
-    client.release();
-  }
-};
+  return sendCreated(res, {
+    data: publicPost(post, { currentUserId: userId }),
+    tags,
+  });
+});
 
 /**
  * @desc    Edit a post and update its tags
- * @route   PUT /api/v1/posts/:postId 
+ * @route   PUT /api/v1/posts/:postId
  * @access  Private
- * @request {title, description, post_image, is_solved, tags: [tag1, tag2, ...]}
  */
-exports.editPost = async (req, res, next) => {
-  try {
-    const user_id = req.user.uid; // user ID is from token
-    const postId = Number(req.params.postId);
-    const { title, description, post_image, is_solved, tags } = req.body;
-    if (!Number.isInteger(postId) || postId <= 0) {
-      return res.status(400).json({ success: false, message: "Invalid postId" });
-    }
-    if (!Array.isArray(tags) || tags.length === 0) {
-      return res.status(400).json({ success: false, message: "Tags must be a non-empty array" });
-    }
-    const pool = req.app.locals.pool;
+exports.editPost = asyncHandler(async (req, res) => {
+  const userId = getAuthUserId(req);
+  const postId = readStringId(req.params.postId, "postId");
+  const tags = normalizeTags(req.body?.tags);
 
-    // Start transaction
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
+  const existing = await prisma.post.findFirst({
+    where: { id: postId, authorId: userId, deletedAt: null },
+    select: { id: true },
+  });
 
-      // Update post fields
-      const sql = `
-        UPDATE public.posts
-        SET 
-          title = COALESCE($2, title),
-          description = COALESCE($3, description),
-          post_image = $4,
-          is_solved = COALESCE($5, is_solved)
-        WHERE post_id = $1 AND user_id = $6 AND is_deleted = FALSE
-        RETURNING post_id, user_id, title, description, post_image, is_solved, created_at
-      `;
-      const { rows } = await client.query(sql, [
-        postId,
-        title ?? null,
-        description ?? null,
-        post_image ?? null,
-        is_solved ?? null,
-        user_id,
-      ]);
-      if (rows.length === 0) {
-        await client.query("ROLLBACK");
-        return res.status(404).json({ success: false, message: "Post not found or not authorized" });
-      }
-
-      
-      // Check if all tags exist
-      const tagCheckSql = `
-        SELECT tag_name FROM public.tags WHERE tag_name = ANY($1)
-      `;
-      const { rows: foundTags } = await client.query(tagCheckSql, [tags]);
-      const foundTagNames = foundTags.map(row => row.tag_name);
-      const missingTags = tags.filter(tag => !foundTagNames.includes(tag));
-
-      if (missingTags.length > 0) {
-        await client.query("ROLLBACK");
-        return res.status(400).json({
-          success: false,
-          message: `Tag(s) do not exist: ${missingTags.join(", ")}`
-        });
-      }
-
-      // Delete old tags
-      await client.query(
-        `DELETE FROM public.post_tags WHERE post_id = $1`,
-        [postId]
-      );
-
-      // Insert new tags (if any)
-      if (tags.length > 0) {
-        const tagInsertSql = `
-          INSERT INTO public.post_tags (post_id, tag_id)
-          SELECT $1, tag_id FROM public.tags WHERE tag_name = ANY($2)
-          ON CONFLICT (post_id, tag_id) DO NOTHING
-        `;
-        await client.query(tagInsertSql, [postId, tags]);
-      }
-
-      await client.query("COMMIT");
-      return res.status(200).json({ success: true, data: rows[0], tags: tags });
-    } catch (err) {
-      await client.query("ROLLBACK");
-      throw err;
-    } finally {
-      client.release();
-    }
-  } catch (e) {
-    next(e);
+  if (!existing) {
+    throw createError(404, "POST_NOT_FOUND", "Post not found or not authorized");
   }
-};
+
+  const data = {};
+  if (Object.prototype.hasOwnProperty.call(req.body || {}, "title")) {
+    data.title = readLimitedText(req.body.title, "title", { max: 180 });
+  }
+  if (
+    Object.prototype.hasOwnProperty.call(req.body || {}, "description") ||
+    Object.prototype.hasOwnProperty.call(req.body || {}, "body")
+  ) {
+    data.body = readLimitedText(req.body.description ?? req.body.body, "description", {
+      max: 10000,
+    });
+  }
+
+  const imageUrl = readOptionalNullableString(req.body, ["post_image", "imageUrl"]);
+  if (imageUrl !== undefined) data.imageUrl = imageUrl;
+
+  const isSolved = readOptionalBoolean(req.body?.is_solved ?? req.body?.isSolved, "is_solved");
+  if (isSolved !== undefined) data.isSolved = isSolved;
+
+  if (Object.keys(data).length === 0 && tags === undefined) {
+    throw createError(400, "NOTHING_TO_UPDATE", "No post fields were provided");
+  }
+
+  const post = await prisma.$transaction(async (tx) => {
+    if (Object.keys(data).length > 0) {
+      await tx.post.update({
+        where: { id: postId },
+        data,
+      });
+    }
+
+    if (tags !== undefined) {
+      await tx.postTag.deleteMany({ where: { postId } });
+      await attachTags(tx, postId, tags);
+    }
+
+    return tx.post.findUnique({
+      where: { id: postId },
+      include: POST_INCLUDE,
+    });
+  });
+
+  return sendSuccess(res, {
+    data: publicPost(post, { currentUserId: userId }),
+    tags: tags ?? publicPost(post).tags,
+  });
+});
 
 /**
- * @desc    delete own post
+ * @desc    Soft delete own post and its comments
  * @route   DELETE /api/v1/posts/:postId
  * @access  Private
  */
+exports.deletePost = asyncHandler(async (req, res) => {
+  const userId = getAuthUserId(req);
+  const postId = readStringId(req.params.postId, "postId");
 
-exports.deletePost = async (req, res, next) => {
-  const pool = req.app.locals.pool;
-  const client = await pool.connect();
-  try {
-    const user_id = req.user.uid;
-    const postId = Number(req.params.postId);
-    if (!Number.isInteger(postId) || postId <= 0) {
-      return res.status(400).json({ success: false, message: "Invalid postId" });
-    }
+  const existing = await prisma.post.findFirst({
+    where: { id: postId, authorId: userId, deletedAt: null },
+    select: { id: true },
+  });
 
-    await client.query("BEGIN");
-
-    // 1) soft delete post (owner only, and only if not already deleted)
-    const upPost = await client.query(
-      `
-      UPDATE posts
-      SET is_deleted = TRUE
-      WHERE post_id = $1 AND user_id = $2 AND is_deleted = FALSE
-      RETURNING post_id
-      `,
-      [postId, user_id]
-    );
-    if (upPost.rowCount === 0) {
-      await client.query("ROLLBACK");
-      return res.status(404).json({ success: false, message: "Post not found or not authorized" });
-    }
-
-    // 2) cascade soft delete comments under this post
-    await client.query(
-      `
-      UPDATE comments
-      SET is_deleted = TRUE
-      WHERE post_id = $1 AND is_deleted = FALSE
-      `,
-      [postId]
-    );
-
-    await client.query("COMMIT");
-    return res.status(200).json({ success: true, message: "Post deleted with comments cascaded", data: upPost.rows[0] });
-  } catch (e) {
-    try { await client.query("ROLLBACK"); } catch (_) {}
-    next(e);
-  } finally {
-    client.release();
+  if (!existing) {
+    throw createError(404, "POST_NOT_FOUND", "Post not found or not authorized");
   }
-};
+
+  const deletedAt = new Date();
+  await prisma.$transaction([
+    prisma.post.update({
+      where: { id: postId },
+      data: { deletedAt },
+    }),
+    prisma.comment.updateMany({
+      where: { postId, deletedAt: null },
+      data: { deletedAt },
+    }),
+  ]);
+
+  return sendSuccess(res, {
+    message: "Post deleted with comments cascaded",
+    data: { id: postId, post_id: postId },
+  });
+});
 
 /**
  * @desc    Refresh the feed
  * @route   GET /api/v1/posts
- * @access  Private
+ * @access  Public
  */
-exports.refreshFeed = async (req, res, next) => {
-  try {
-    const pool = req.app.locals.pool;
-    const { rows } = await pool.query(
-      `SELECT * FROM public.posts
-      where is_deleted=false
-      ORDER BY created_at DESC`
-    ); //order by creation date desc, might be changed later
+exports.refreshFeed = asyncHandler(async (req, res) => {
+  const currentUserId = getOptionalUserId(req);
+  const { limit, offset } = parseLimitOffset(req.query, { defaultLimit: 50, maxLimit: 100 });
+  const posts = await prisma.post.findMany({
+    where: { deletedAt: null },
+    include: POST_INCLUDE,
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: limit,
+    skip: offset,
+  });
+  const rows = posts.map((post) => publicPost(post, { currentUserId }));
 
-    return res.status(200).json({ success: true, count: rows.length, rows });
-  } catch (e) {
-    next(e);
-  }
-};
+  return sendSuccess(res, {
+    count: rows.length,
+    data: rows,
+    rows,
+  });
+});
 
 /**
  * @desc    Add a bookmark
- * @route   POST /api/v1/posts/bookmarks
+ * @route   POST /api/v1/posts/bookmarks/:postId
  * @access  Private
  */
-exports.addBookmark = async (req, res, next) => {
-  try {
-    
-    const post_id = Number(req.params.postId);
-    const user_id = req.user.uid; // เอาจาก token
-    if (!/^\d+$/.test(String(user_id)) || !/^\d+$/.test(String(post_id))) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid user_id or post_id" });
-    }
+exports.addBookmark = asyncHandler(async (req, res) => {
+  const userId = getAuthUserId(req);
+  const postId = readStringId(req.params.postId, "postId");
 
-    const pool = req.app.locals.pool;
+  const post = await prisma.post.findFirst({
+    where: { id: postId, deletedAt: null },
+    select: { id: true },
+  });
 
-    // SINGLE query: insert or do nothing, then check rowCount via RETURNING
-    const sql = `
-      INSERT INTO public.bookmarks (user_id, post_id)
-      SELECT $1, $2
-      WHERE EXISTS (
-        SELECT 1 FROM public.posts WHERE post_id = $2 AND is_deleted = FALSE
-      )
-      ON CONFLICT (user_id, post_id) DO NOTHING
-      RETURNING user_id, post_id, created_at;
-    `;
-    const { rows } = await pool.query(sql, [user_id, post_id]);
-
-    if (rows.length === 1) {
-      return res.status(201).json({ success: true, data: rows[0] });
-    }
-    return res
-      .status(200)
-      .json({ success: true, message: "Already bookmarked" });
-  } catch (e) {
-    if (e.code === "23503") {
-      // FK violation
-      return res
-        .status(400)
-        .json({ success: false, message: "user_id or post_id does not exist" });
-    }
-    next(e);
+  if (!post) {
+    throw createError(404, "POST_NOT_FOUND", "Post not found");
   }
-};
+
+  const existing = await prisma.bookmark.findUnique({
+    where: { userId_postId: { userId, postId } },
+  });
+
+  if (existing) {
+    return sendSuccess(res, {
+      message: "Already bookmarked",
+      data: {
+        user_id: existing.userId,
+        post_id: existing.postId,
+        created_at: existing.createdAt,
+      },
+    });
+  }
+
+  const bookmark = await prisma.bookmark.create({
+    data: { userId, postId },
+  });
+
+  return sendCreated(res, {
+    data: {
+      user_id: bookmark.userId,
+      post_id: bookmark.postId,
+      created_at: bookmark.createdAt,
+    },
+  });
+});
 
 /**
  * @desc    Get bookmarks for a user
  * @route   GET /api/v1/posts/bookmarks
  * @access  Private
  */
+exports.getBookmarks = asyncHandler(async (req, res) => {
+  const userId = getAuthUserId(req);
+  const bookmarks = await prisma.bookmark.findMany({
+    where: {
+      userId,
+      post: { is: { deletedAt: null } },
+    },
+    include: {
+      post: {
+        include: POST_INCLUDE,
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  const data = bookmarks.map((bookmark) =>
+    publicPost(bookmark.post, {
+      currentUserId: userId,
+      bookmarkedAt: bookmark.createdAt,
+    })
+  );
 
-exports.getBookmarks = async (req, res, next) => {
-  try {
-    // Extract user_id from token
-    const user_id = req.user.uid;
-    if (!user_id) {
-      return res.status(400).json({ success: false, message: "Missing user_id from token" });
-    }
-
-    // Validate numeric user_id
-    if (!/^\d+$/.test(String(user_id))) {
-      return res.status(400).json({ success: false, message: "Invalid user_id" });
-    }
-
-    const pool = req.app.locals.pool;
-
-    const sql = `
-      SELECT 
-        p.post_id,
-        p.title,
-        p.description,
-        p.post_image,
-        p.is_solved,
-        p.created_at,
-        json_build_object(
-          'user_id', u.user_id,
-          'display_name', u.display_name,
-          'profile_picture', u.profile_picture
-        ) AS author,
-        COALESCE(SUM(CASE WHEN r_all.rating_type = 'like' THEN 1 ELSE 0 END), 0)    AS likes,
-        COALESCE(SUM(CASE WHEN r_all.rating_type = 'dislike' THEN 1 ELSE 0 END), 0) AS dislikes,
-        CASE 
-          WHEN MAX(CASE WHEN r_me.rating_type = 'like' THEN 1 ELSE 0 END) = 1 THEN 'like'
-          WHEN MAX(CASE WHEN r_me.rating_type = 'dislike' THEN 1 ELSE 0 END) = 1 THEN 'dislike'
-          ELSE NULL
-        END AS my_rating,
-        ARRAY_AGG(DISTINCT t.tag_name) FILTER (WHERE t.tag_name IS NOT NULL) AS tags,
-        b.created_at AS bookmarked_at
-      FROM public.bookmarks b
-      JOIN public.posts p ON p.post_id = b.post_id
-      JOIN public.users u ON u.user_id = p.user_id
-      LEFT JOIN public.ratings r_all ON r_all.post_id = p.post_id
-      LEFT JOIN public.ratings r_me ON r_me.post_id = p.post_id AND r_me.user_id = $2
-      LEFT JOIN public.post_tags pt ON pt.post_id = p.post_id
-      LEFT JOIN public.tags t ON t.tag_id = pt.tag_id
-      WHERE b.user_id = $1 and p.is_deleted = FALSE
-      AND p.is_deleted = FALSE
-      GROUP BY p.post_id, u.user_id, u.display_name, u.profile_picture, b.created_at
-      ORDER BY b.created_at DESC;
-    `;
-
-    const { rows } = await pool.query(sql, [user_id, user_id]);
-
-    return res.status(200).json({
-      success: true,
-      count: rows.length,
-      data: rows
-    });
-  } catch (err) {
-    console.error("Error in getBookmarks:", err.message);
-    return res.status(500).json({
-      success: false,
-      message: "Server error while fetching bookmarks"
-    });
-  }
-};
-
+  return sendSuccess(res, {
+    count: data.length,
+    data,
+  });
+});
 
 /**
- * @desc remove bookmark
- * @route DELETE /api/v1/posts/bookmarks
- * @access Private
+ * @desc    Remove bookmark
+ * @route   DELETE /api/v1/posts/bookmarks/:postId
+ * @access  Private
  */
+exports.removeBookmark = asyncHandler(async (req, res) => {
+  const userId = getAuthUserId(req);
+  const postId = readStringId(req.params.postId, "postId");
+  const result = await prisma.bookmark.deleteMany({
+    where: { userId, postId },
+  });
 
-exports.removeBookmark = async (req, res, next) => {
-  try {
-    const post_id = Number(req.params.postId);
-    const user_id = req.user.uid; // from token
-    if (!/^\d+$/.test(String(user_id)) || !/^\d+$/.test(String(post_id))) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid user_id or post_id" });
-    }
+  if (!result.count) {
+    throw createError(404, "BOOKMARK_NOT_FOUND", "Bookmark not found");
+  }
 
-    const pool = req.app.locals.pool;
-
-    const sql = ` 
-      DELETE FROM public.bookmarks
-      WHERE user_id = $1 AND post_id = $2 
-      RETURNING user_id, post_id, created_at;
-    `;
-    const { rows } = await pool.query(sql, [user_id, post_id]); 
-    if (rows.length === 1) {
-      return res.status(200).json({ success: true, data: rows[0] });
-    } else {
-      return res
-        .status(404)
-        .json({ success: false, message: "Bookmark not found" });
-    }
-  } catch (e) {
-    next(e);
-  } 
-};
+  return sendSuccess(res, {
+    data: { user_id: userId, post_id: postId },
+  });
+});

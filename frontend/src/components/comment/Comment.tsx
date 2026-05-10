@@ -33,10 +33,10 @@ const Comment = ({ commentData, allComments = [], onDelete, postId }: CommentPro
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
-  const isOwner = user?.user_id == commentData.author.user_id;
+  const isOwner = String(user?.user_id) === String(commentData.author.user_id);
 
   const replies = allComments.filter(
-    (c) => c.parent_comment !== null && Number(c.parent_comment) === Number(commentData.id)
+    (c) => c.parent_comment !== null && String(c.parent_comment) === String(commentData.id)
   );
   const initialContent: CommentContent = {
     text: commentData.text,
@@ -102,7 +102,7 @@ const Comment = ({ commentData, allComments = [], onDelete, postId }: CommentPro
     setIsSubmitting(true);
 
     try {
-      await handleCreateNewReply(Number(postId), text, imageUrl);
+      await handleCreateNewReply(String(postId), text, imageUrl);
 
       await new Promise((resolve) => setTimeout(resolve, 500));
 

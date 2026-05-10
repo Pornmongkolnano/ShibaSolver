@@ -13,14 +13,14 @@ interface Props {
 
 
 function mapPostCommentToCommentData(api: any , allComments: any[]): CommentData {
-  const commentId = Number(api.comment_id);
+  const commentId = String(api.comment_id);
   // Calculate reply count by counting comments where parent_comment === this comment's ID
 
   if (!api.profile_picture) {
     console.log("Missing profile_picture for comment:", api.comment_id, "user:", api.user_id, "api data:", api);
   }
   const replyCount = allComments.filter(
-    (c) => c.parent_comment != null && Number(c.parent_comment) === commentId
+    (c) => c.parent_comment != null && String(c.parent_comment) === commentId
   ).length;
 
   return {
@@ -28,7 +28,7 @@ function mapPostCommentToCommentData(api: any , allComments: any[]): CommentData
     author: {
       display_name: api.user_name || "Anonymous",
       profile_picture: api.profile_picture || "/image/DefaultAvatar.png",
-      user_id: Number(api.user_id || 0),
+      user_id: String(api.user_id || ""),
     },
     text: String(api.text ?? ""),
     comment_image : api.comment_image || null,
@@ -37,7 +37,7 @@ function mapPostCommentToCommentData(api: any , allComments: any[]): CommentData
     dislikes: Number(api.dislikes ?? 0),
     Replies: replyCount, // Calculate from allComments
     is_solution: Boolean(api.is_solution),
-    parent_comment: api.parent_comment == null ? null : Number(api.parent_comment),
+    parent_comment: api.parent_comment == null ? null : String(api.parent_comment),
   };
 }
 

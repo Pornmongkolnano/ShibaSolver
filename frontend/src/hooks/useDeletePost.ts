@@ -5,7 +5,7 @@ interface DeleteApiResponse {
   success: boolean;
   message: string;
   data?: {
-    post_id: number;
+    post_id: string;
   };
 }
 

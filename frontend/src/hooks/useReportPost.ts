@@ -4,7 +4,7 @@ import { useState } from 'react';
 // Interface สำหรับข้อมูลที่จะส่งไป Report
 interface ReportPayload {
   target_type: 'post' | 'comment'; // ตอนนี้เราจะใช้แค่ 'post'
-  target_id: number;
+  target_id: string;
   reason: string;
 }
 
@@ -25,9 +25,8 @@ export const useReportPost = () => {
     setError(null);
     setSuccessMessage(null);
 
-    // ตรวจสอบว่า postId เป็นตัวเลขที่ถูกต้องหรือไม่
-    const targetIdNumber = Number(postId);
-    if (isNaN(targetIdNumber) || targetIdNumber <= 0) {
+    const targetId = String(postId || '').trim();
+    if (!targetId) {
       const errMsg = "Invalid Post ID provided for reporting.";
       setError(errMsg);
       setIsReporting(false);
@@ -36,7 +35,7 @@ export const useReportPost = () => {
 
     const payload: ReportPayload = {
       target_type: 'post',
-      target_id: targetIdNumber,
+      target_id: targetId,
       reason: reason,
     };
 

@@ -1,93 +1,56 @@
-exports.getFeed = async (req, res, next) => {
-  try {
-    const pool = req.app.locals.pool;
+const prisma = require("../lib/prisma");
+const { asyncHandler, sendSuccess } = require("../utils/apiResponse");
+const { publicPost, ratingSummary } = require("../utils/apiPresenters");
+const { parseLimitOffset } = require("../utils/request");
 
-    //Posts with author info + post like/dislike summary
-    const postSql = `
-      SELECT 
-        p.post_id,
-        p.title,
-        p.description,
-        p.post_image,
-        p.is_solved,
-        p.created_at,
-        u.user_id,
-        u.display_name,
-        u.profile_picture,
-        COALESCE(SUM(CASE WHEN r.rating_type = 'like' THEN 1 ELSE 0 END), 0) AS likes,
-        COALESCE(SUM(CASE WHEN r.rating_type = 'dislike' THEN 1 ELSE 0 END), 0) AS dislikes
-      FROM posts p
-      JOIN users u ON u.user_id = p.user_id
-      LEFT JOIN ratings r ON r.post_id = p.post_id
-      WHERE p.is_deleted = FALSE
-      GROUP BY p.post_id, u.user_id, u.display_name, u.profile_picture
-      ORDER BY p.created_at DESC
-      LIMIT 20;
-    `;
-
-    //Tags for each post (aggregated as array)
-    const tagSql = `
-      SELECT 
-        pt.post_id,
-        ARRAY_AGG(t.tag_name) AS tags
-      FROM post_tags pt
-      JOIN tags t ON t.tag_id = pt.tag_id
-      GROUP BY pt.post_id;
-    `;
-
-    //Top comment per post (most total_ratings)
-    const topCommentSql = `
-      SELECT DISTINCT ON (c.post_id)
-        c.post_id,
-        c.comment_id,
-        c.text,
-        c.created_at,
-        c.user_id,
-        u.display_name,
-        u.profile_picture,
-        COALESCE(SUM(CASE WHEN r.rating_type='like' THEN 1 ELSE 0 END), 0) +
-        COALESCE(SUM(CASE WHEN r.rating_type='dislike' THEN 1 ELSE 0 END), 0) AS total_ratings,
-        COALESCE(SUM(CASE WHEN r.rating_type='like' THEN 1 ELSE 0 END), 0) AS likes,
-        COALESCE(SUM(CASE WHEN r.rating_type='dislike' THEN 1 ELSE 0 END), 0) AS dislikes
-      FROM comments c
-      JOIN users u ON u.user_id = c.user_id
-      LEFT JOIN ratings r ON r.comment_id = c.comment_id
-      WHERE c.is_deleted = FALSE
-      GROUP BY c.post_id, c.comment_id, u.display_name, u.profile_picture, c.user_id
-      ORDER BY c.post_id, total_ratings DESC;
-    `;
-
-    // Run all queries in parallel ⚡
-    const [postsRes, tagsRes, topCommentsRes] = await Promise.all([
-      pool.query(postSql),
-      pool.query(tagSql),
-      pool.query(topCommentSql)
-    ]);
-
-    // Convert tags + comments into lookup maps for quick merge
-    const tagsByPost = Object.fromEntries(
-      tagsRes.rows.map(t => [t.post_id, t.tags])
-    );
-
-    const topComments = Object.fromEntries(
-      topCommentsRes.rows.map(c => [c.post_id, c])
-    );
-
-    // Merge all data into final feed structure
-    const feed = postsRes.rows.map(p => ({
-      ...p,
-      tags: tagsByPost[p.post_id] || [],
-      top_comment: topComments[p.post_id] || null,
-    }));
-
-    return res.status(200).json({
-      success: true,
-      count: feed.length,
-      data: feed
-    });
-
-  } catch (err) {
-    console.error('Error in getFeed:', err);
-    return res.status(500).json({ success: false, message: "Server error" });
-  }
+const FEED_INCLUDE = {
+  author: true,
+  tags: { include: { tag: true } },
+  ratings: { select: { userId: true, value: true } },
+  comments: {
+    where: { deletedAt: null },
+    include: {
+      author: true,
+      ratings: { select: { userId: true, value: true } },
+    },
+  },
 };
+
+function getOptionalUserId(req) {
+  return req.currentUser?.id || req.user?.id || req.user?.uid || null;
+}
+
+function topCommentForPost(post) {
+  if (!post.comments?.length) return null;
+
+  return [...post.comments].sort((a, b) => {
+    const aVotes = ratingSummary(a.ratings).total_votes;
+    const bVotes = ratingSummary(b.ratings).total_votes;
+    if (bVotes !== aVotes) return bVotes - aVotes;
+    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+  })[0];
+}
+
+exports.getFeed = asyncHandler(async (req, res) => {
+  const currentUserId = getOptionalUserId(req);
+  const { limit, offset } = parseLimitOffset(req.query, { defaultLimit: 20, maxLimit: 100 });
+  const posts = await prisma.post.findMany({
+    where: { deletedAt: null },
+    include: FEED_INCLUDE,
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: limit,
+    skip: offset,
+  });
+
+  const data = posts.map((post) =>
+    publicPost(post, {
+      currentUserId,
+      topComment: topCommentForPost(post),
+    })
+  );
+
+  return sendSuccess(res, {
+    count: data.length,
+    data,
+  });
+});

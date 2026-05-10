@@ -4,7 +4,7 @@ import { useState } from 'react';
 // Interface สำหรับข้อมูลที่จะส่งไป Report
 interface ReportPayload {
   target_type: 'post' | 'comment';
-  target_id: number;
+  target_id: string;
   reason: string;
 }
 
@@ -24,8 +24,8 @@ export const useReportComment = () => {
     setIsReporting(true);
     setError(null);
 
-    const targetIdNumber = Number(commentId);
-    if (isNaN(targetIdNumber) || targetIdNumber <= 0) {
+    const targetId = String(commentId || '').trim();
+    if (!targetId) {
       const errMsg = "Invalid Comment ID provided for reporting.";
       setError(errMsg);
       setIsReporting(false);
@@ -35,7 +35,7 @@ export const useReportComment = () => {
     const payload: ReportPayload = {
       // ✅ 2. เปลี่ยน target_type เป็น 'comment'
       target_type: 'comment', 
-      target_id: targetIdNumber,
+      target_id: targetId,
       reason: reason,
     };
 
