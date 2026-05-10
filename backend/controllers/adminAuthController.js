@@ -1,51 +1,84 @@
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
+const bcrypt = require("bcryptjs");
+const prisma = require("../lib/prisma");
+const {
+  ADMIN_COOKIE,
+  clearSessionCookie,
+  createSession,
+  readBearerOrCookie,
+  revokeToken,
+  setSessionCookie,
+} = require("../services/sessionService");
+const { publicAdmin } = require("../utils/userPresenter");
 
-exports.loginAdmin = async (req, res) => {
+function normalizeEmail(email) {
+  return String(email || "").trim().toLowerCase();
+}
+
+exports.loginAdmin = async (req, res, next) => {
   try {
-    const pool = req.app.locals.pool;
-    const { email, password } = req.body || {};
-    if (!email || !password) {
-      return res.status(400).json({ success: false, message: 'Email/Password required' });
+    const { email: rawEmail, password } = req.body || {};
+    const email = normalizeEmail(rawEmail);
+
+    if (!email || typeof password !== "string") {
+      return res.status(400).json({
+        success: false,
+        error: { code: "INVALID_LOGIN_PAYLOAD", message: "Email and password are required" },
+      });
     }
 
-    const { rows } = await pool.query(
-      `SELECT admin_id, name, email, password
-       FROM admins
-       WHERE email = $1
-       LIMIT 1`,
-      [email]
-    );
-    if (rows.length === 0) {
-      return res.status(401).json({ success: false, message: 'Invalid credentials' });
-    }
-    const admin = rows[0];
-
-    const ok = await bcrypt.compare(password, admin.password || '');
-    if (!ok) return res.status(401).json({ success: false, message: 'Invalid credentials' });
-
-    const token = jwt.sign({ uid: admin.admin_id, scope: 'admin' }, process.env.JWT_SECRET, { expiresIn: '60m' });
-
-    res.cookie('admin_access_token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'none',
-      maxAge: 60 * 60 * 1000,
-      path: '/',
+    const identity = await prisma.authIdentity.findUnique({
+      where: {
+        provider_providerUserId: {
+          provider: "PASSWORD",
+          providerUserId: email,
+        },
+      },
+      include: { user: true },
     });
+
+    const ok =
+      identity?.passwordHash &&
+      (await bcrypt.compare(password, identity.passwordHash));
+
+    if (
+      !identity ||
+      !ok ||
+      identity.user.role !== "ADMIN" ||
+      identity.user.status !== "ACTIVE"
+    ) {
+      return res.status(401).json({
+        success: false,
+        error: { code: "INVALID_CREDENTIALS", message: "Invalid credentials" },
+      });
+    }
+
+    const session = await createSession(identity.user, req);
+    setSessionCookie(res, ADMIN_COOKIE, session.token, session.maxAge);
 
     return res.json({
       success: true,
-      token,
-      data: { admin_id: admin.admin_id, name: admin.name, email: admin.email }
+      token: session.token,
+      data: publicAdmin(identity.user),
     });
   } catch (err) {
-    console.error(err.stack);
-    return res.status(500).json({ success: false, message: 'Server error' });
+    next(err);
   }
 };
 
-exports.logoutAdmin = async (req, res) => {
-  res.clearCookie('admin_access_token', { path: '/' });
-  return res.json({ success: true });
+exports.logoutAdmin = async (req, res, next) => {
+  try {
+    const token = readBearerOrCookie(req, ADMIN_COOKIE);
+    await revokeToken(token);
+    clearSessionCookie(res, ADMIN_COOKIE);
+    return res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getAdminMe = async (req, res) => {
+  return res.json({
+    success: true,
+    data: publicAdmin(req.currentUser),
+  });
 };

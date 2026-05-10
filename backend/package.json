@@ -23,6 +23,7 @@
     "prisma:migrate": "prisma migrate deploy",
     "prisma:dev": "prisma migrate dev",
     "prisma:studio": "prisma studio",
+    "admin:create": "node scripts/create-admin.js",
     "test-coverage": "jest --watchAll --coverage"
   },
   "dependencies": {

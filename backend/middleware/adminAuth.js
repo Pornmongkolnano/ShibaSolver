@@ -1,20 +1,37 @@
-const jwt = require('jsonwebtoken');
+const {
+  ADMIN_COOKIE,
+  getSessionUser,
+  readBearerOrCookie,
+} = require("../services/sessionService");
 
-function adminProtect(req, res, next) {
+async function adminProtect(req, res, next) {
   try {
-    const bearer = req.headers.authorization;
-    const cookieToken = req.cookies?.admin_access_token;
-    const token = cookieToken || (bearer?.startsWith('Bearer ') ? bearer.split(' ')[1] : null);
-    if (!token) return res.status(401).json({ success: false, message: 'Not authenticated' });
+    const token = readBearerOrCookie(req, ADMIN_COOKIE);
+    const user = await getSessionUser(token);
 
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
-    if (payload.scope !== 'admin') {
-      return res.status(403).json({ success: false, message: 'Forbidden' });
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        error: { code: "UNAUTHORIZED", message: "Not authenticated" },
+      });
     }
-    req.admin = { admin_id: payload.uid };
+
+    if (user.role !== "ADMIN") {
+      return res.status(403).json({
+        success: false,
+        error: { code: "FORBIDDEN", message: "Admin role required" },
+      });
+    }
+
+    req.currentUser = user;
+    req.admin = {
+      id: user.id,
+      admin_id: user.id,
+      role: user.role,
+    };
     next();
-  } catch {
-    return res.status(401).json({ success: false, message: 'Invalid/Expired token' });
+  } catch (err) {
+    next(err);
   }
 }
 

@@ -32,7 +32,7 @@ module.exports = {
     title: 'ShibaSolver API',
     version: '1.0.0',
     description:
-      'REST API that powers the ShibaSolver platform. Authentication relies on short-lived JWTs that can be supplied through the `Authorization: Bearer <token>` header or via the `ss_token` / `admin_access_token` cookies.',
+      'REST API that powers the ShibaSolver platform. Authentication uses opaque session tokens stored as hashes server-side. Tokens can be supplied through the `Authorization: Bearer <token>` header or via the `ss_token` / `admin_access_token` cookies.',
     contact: {
       name: 'ShibaSolver Team',
       url: 'https://github.com/hogetee/ShibaSolver',
@@ -66,14 +66,14 @@ module.exports = {
       UserBearerAuth: {
         type: 'http',
         scheme: 'bearer',
-        bearerFormat: 'JWT',
+        bearerFormat: 'Opaque session token',
         description:
           'User session token. The same token is also accepted via the `ss_token` cookie.',
       },
       AdminBearerAuth: {
         type: 'http',
         scheme: 'bearer',
-        bearerFormat: 'JWT',
+        bearerFormat: 'Opaque session token',
         description:
           'Admin session token. The same token is also accepted via the `admin_access_token` cookie.',
       },
@@ -397,6 +397,25 @@ module.exports = {
         required: ['id_token'],
         properties: {
           id_token: { type: 'string', description: 'Google ID token' },
+        },
+      },
+      PasswordRegisterRequest: {
+        type: 'object',
+        required: ['email', 'password'],
+        properties: {
+          email: { type: 'string', format: 'email' },
+          password: { type: 'string', minLength: 8, format: 'password' },
+          username: { type: 'string', nullable: true },
+          displayName: { type: 'string', nullable: true },
+          avatarUrl: { type: 'string', nullable: true },
+        },
+      },
+      PasswordLoginRequest: {
+        type: 'object',
+        required: ['email', 'password'],
+        properties: {
+          email: { type: 'string', format: 'email' },
+          password: { type: 'string', format: 'password' },
         },
       },
       AdminLoginRequest: {

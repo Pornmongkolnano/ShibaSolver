@@ -22,6 +22,65 @@ module.exports = {
   },
 
   // Auth
+  '/api/v1/auth/register': {
+    post: {
+      tags: ['Auth'],
+      summary: 'Register a user with email and password',
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: { $ref: '#/components/schemas/PasswordRegisterRequest' },
+          },
+        },
+      },
+      responses: {
+        201: jsonResponse('User registered and session cookie set', {
+          allOf: [
+            baseResponseRef,
+            {
+              type: 'object',
+              properties: {
+                new_user: { type: 'boolean', example: true },
+                data: { $ref: '#/components/schemas/UserDetail' },
+              },
+            },
+          ],
+        }),
+        400: jsonResponse('Invalid registration payload', errorResponseRef),
+        409: jsonResponse('Email or username already in use', errorResponseRef),
+      },
+    },
+  },
+  '/api/v1/auth/login': {
+    post: {
+      tags: ['Auth'],
+      summary: 'Log in using email and password',
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: { $ref: '#/components/schemas/PasswordLoginRequest' },
+          },
+        },
+      },
+      responses: {
+        200: jsonResponse('User authenticated and session cookie set', {
+          allOf: [
+            baseResponseRef,
+            {
+              type: 'object',
+              properties: {
+                data: { $ref: '#/components/schemas/UserDetail' },
+              },
+            },
+          ],
+        }),
+        400: jsonResponse('Invalid login payload', errorResponseRef),
+        401: jsonResponse('Invalid credentials', errorResponseRef),
+      },
+    },
+  },
   '/api/v1/auth/google': {
     post: {
       tags: ['Auth'],
@@ -118,7 +177,7 @@ module.exports = {
                 token: {
                   type: 'string',
                   description:
-                    'JWT that is also stored inside the admin_access_token cookie.',
+                    'Opaque session token that is also stored inside the admin_access_token cookie.',
                 },
                 data: { $ref: '#/components/schemas/AdminSummary' },
               },
@@ -138,6 +197,28 @@ module.exports = {
       responses: {
         200: jsonResponse('Logout successful', baseResponseRef),
         401: jsonResponse('Not authenticated as admin', errorResponseRef),
+      },
+    },
+  },
+  '/api/v1/adminAuth/me': {
+    get: {
+      tags: ['Admin Auth'],
+      summary: 'Get current admin session',
+      security: [{ AdminBearerAuth: [] }],
+      responses: {
+        200: jsonResponse('Authenticated admin profile', {
+          allOf: [
+            baseResponseRef,
+            {
+              type: 'object',
+              properties: {
+                data: { $ref: '#/components/schemas/AdminSummary' },
+              },
+            },
+          ],
+        }),
+        401: jsonResponse('Not authenticated as admin', errorResponseRef),
+        403: jsonResponse('Authenticated user is not an admin', errorResponseRef),
       },
     },
   },

@@ -45,9 +45,10 @@ npm run dev
 
 - Create Neon database and set `DATABASE_URL`.
 - Set `DATABASE_SSL=require` or `DATABASE_SSL=no-verify` depending on the database certificate policy.
-- Generate a long random `JWT_SECRET`.
+- Set `SESSION_EXPIRES_IN` to the desired opaque session lifetime, for example `7d`.
 - Configure Google OAuth with the production frontend origin.
 - Configure backend CORS with `FRONTEND_ORIGIN`.
 - Configure Cloudinary unsigned upload preset and set frontend public variables.
+- Run Prisma migrations before exposing the app: `cd backend && npm run prisma:migrate`.
+- Create the first admin account: `cd backend && npm run admin:create`.
 - Deploy backend first, verify `GET /health`, then set frontend API URL to the backend origin.
-- Run Prisma migrations before exposing the app once API code has moved fully onto the redesigned schema.
