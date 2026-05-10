@@ -1,6 +1,5 @@
 import { BackendUser } from "@/hooks/useUserProfile";
-
-const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL  ;
+import { apiUrl } from "./api";
 
 type UserResponse = {
     success: boolean;
@@ -24,7 +23,7 @@ export interface UserData {
 
 export const userService = {
     async getUserByUsername(username: string): Promise<UserResponse> {
-        const response = await fetch(`${BASE_URL}/api/v1/users/${username}`);
+        const response = await fetch(apiUrl(`/api/v1/users/${username}`));
         if (!response.ok) {
             throw new Error("Failed to fetch user");
         }
@@ -32,7 +31,7 @@ export const userService = {
     },
 
     async getUserIdByUsername(username: string): Promise<number> {
-        const response = await fetch(`${BASE_URL}/api/v1/users/${username}`);
+        const response = await fetch(apiUrl(`/api/v1/users/${username}`));
         if (!response.ok) {
             throw new Error("Failed to fetch user ID");
         }
@@ -43,7 +42,7 @@ export const userService = {
     },
 
     async getUserProfileByUsername(username: string): Promise<number> {
-        const response = await fetch(`${BASE_URL}/api/v1/users/${username}`);
+        const response = await fetch(apiUrl(`/api/v1/users/${username}`));
         if (!response.ok) {
             throw new Error("Failed to fetch user profile");
         }
@@ -55,7 +54,7 @@ export const userService = {
     },
 
     async getUserPostsCount(userId: number): Promise<number> {
-        const response = await fetch(`${BASE_URL}/api/v1/users/${userId}/posts`);
+        const response = await fetch(apiUrl(`/api/v1/users/${userId}/posts`));
         if (!response.ok) {
             throw new Error("Failed to fetch user posts count");
         }

@@ -1,0 +1,297 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum AccountStatus {
+  ACTIVE
+  BANNED
+  SUSPENDED
+  DELETED
+}
+
+enum AuthProvider {
+  GOOGLE
+  PASSWORD
+}
+
+enum RatingValue {
+  LIKE
+  DISLIKE
+}
+
+enum ModerationTargetType {
+  USER
+  POST
+  COMMENT
+}
+
+enum ReportStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum NotificationType {
+  COMMENT
+  REPLY
+  MENTION
+  BAN
+  UNBAN
+  ADMIN_DELETE
+  SYSTEM
+}
+
+enum AdminActionType {
+  DELETE_POST
+  DELETE_COMMENT
+  BAN_USER
+  UNBAN_USER
+  SUSPEND_USER
+  RESOLVE_REPORT
+}
+
+enum CookieConsentChoice {
+  ACCEPT
+  REJECT
+}
+
+model User {
+  id                 String        @id @default(cuid())
+  email              String        @unique
+  username           String?       @unique
+  displayName        String?
+  avatarUrl          String?
+  bio                String?
+  educationLevel     String?
+  interestedSubjects String[]      @default([])
+  role               UserRole      @default(USER)
+  status             AccountStatus @default(ACTIVE)
+  isPremium          Boolean       @default(false)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  deletedAt          DateTime?
+
+  identities       AuthIdentity[]
+  sessions         Session[]
+  posts            Post[]
+  comments         Comment[]
+  ratings          Rating[]
+  bookmarks        Bookmark[]
+  reportsFiled     Report[]       @relation("ReportReporter")
+  reportsReviewed  Report[]       @relation("ReportReviewer")
+  reportsTargeting  Report[]       @relation("ReportTargetUser")
+  notifications    Notification[]
+  adminActions     AdminAction[]
+  cookieConsents   CookieConsent[]
+
+  @@index([role])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model AuthIdentity {
+  id             String       @id @default(cuid())
+  userId         String
+  provider       AuthProvider
+  providerUserId String
+  passwordHash   String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerUserId])
+  @@index([userId])
+}
+
+model Session {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  userAgent String?
+  ipAddress String?
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Post {
+  id        String    @id @default(cuid())
+  authorId  String
+  title     String
+  body      String
+  imageUrl  String?
+  isSolved  Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  author    User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  comments  Comment[]
+  ratings   Rating[]
+  bookmarks Bookmark[]
+  tags      PostTag[]
+  reports   Report[]   @relation("ReportPost")
+
+  @@index([authorId])
+  @@index([createdAt])
+  @@index([deletedAt])
+}
+
+model Tag {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  createdAt DateTime  @default(now())
+  posts     PostTag[]
+}
+
+model PostTag {
+  postId String
+  tagId  String
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([postId, tagId])
+  @@index([tagId])
+}
+
+model Comment {
+  id        String    @id @default(cuid())
+  postId    String
+  authorId  String
+  parentId  String?
+  body      String
+  imageUrl  String?
+  isSolution Boolean  @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  post     Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author   User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent   Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: SetNull)
+  replies  Comment[] @relation("CommentReplies")
+  ratings  Rating[]
+  reports  Report[]  @relation("ReportComment")
+
+  @@index([postId])
+  @@index([authorId])
+  @@index([parentId])
+  @@index([createdAt])
+}
+
+model Bookmark {
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([userId, postId])
+  @@index([postId])
+}
+
+model Rating {
+  id        String      @id @default(cuid())
+  userId    String
+  value     RatingValue
+  postId    String?
+  commentId String?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post    Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  comment Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@unique([userId, commentId])
+  @@index([postId])
+  @@index([commentId])
+}
+
+model Report {
+  id          String               @id @default(cuid())
+  reporterId  String
+  reviewerId  String?
+  targetType  ModerationTargetType
+  targetUserId String?
+  targetPostId String?
+  targetCommentId String?
+  reason      String
+  status      ReportStatus         @default(PENDING)
+  createdAt   DateTime             @default(now())
+  reviewedAt  DateTime?
+
+  reporter      User     @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reviewer      User?    @relation("ReportReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  targetUser    User?    @relation("ReportTargetUser", fields: [targetUserId], references: [id], onDelete: SetNull)
+  targetPost    Post?    @relation("ReportPost", fields: [targetPostId], references: [id], onDelete: SetNull)
+  targetComment Comment? @relation("ReportComment", fields: [targetCommentId], references: [id], onDelete: SetNull)
+
+  @@index([reporterId])
+  @@index([reviewerId])
+  @@index([targetType])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  message   String
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([createdAt])
+}
+
+model CookieConsent {
+  id        String              @id @default(cuid())
+  userId    String?
+  anonKey   String
+  choice    CookieConsentChoice
+  createdAt DateTime            @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([anonKey])
+}
+
+model AdminAction {
+  id         String                @id @default(cuid())
+  adminId    String
+  actionType AdminActionType
+  targetType ModerationTargetType
+  targetId   String
+  createdAt  DateTime              @default(now())
+
+  admin User @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@index([targetType, targetId])
+  @@index([createdAt])
+}

@@ -1,8 +1,8 @@
-const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL  ;
+import { apiUrl } from "./api";
 
 export const postService = {
     async getPostTitleById(postId: string): Promise<string> {
-        const response = await fetch(`${BASE_URL}/api/v1/posts/${postId}`);
+        const response = await fetch(apiUrl(`/api/v1/posts/${postId}`));
         if (!response.ok) {
             throw new Error("Failed to fetch post title");
         }
