@@ -1,10 +1,11 @@
+import { getApiBaseUrl } from "@/utils/api";
 import { useState } from 'react';
 
 export const useDeleteUser = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL   ;
+  const API_BASE = getApiBaseUrl()   ;
 
   const deleteUser = async () => {
     setIsLoading(true);

@@ -1,9 +1,10 @@
+import { getApiBaseUrl } from "@/utils/api";
 import { useRouter } from "next/navigation";
 import { useCallback } from "react";
 
 export default function useEditProfileNavigation({ setErrors, setIsSubmitting, onProfileUpdate }) {
   const router = useRouter();
-  const apiBase = process.env.NEXT_PUBLIC_API_URL   ;
+  const apiBase = getApiBaseUrl()   ;
 
   const updateProfile = useCallback(async (payload) => {
     if (!payload) return false;

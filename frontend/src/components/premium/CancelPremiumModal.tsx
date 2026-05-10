@@ -1,4 +1,5 @@
 "use client";
+import { getApiBaseUrl } from "@/utils/api";
 
 import React from "react";
 
@@ -7,7 +8,7 @@ interface Props {
 }
 
 export default function CancelPremiumModal({ onClose }: Props) {
-    const BASE = process.env.NEXT_PUBLIC_API_URL  ;
+    const BASE = getApiBaseUrl()  ;
     const handleConfirm = async () => {
         try {
             const res = await fetch(`${BASE}/api/v1/users/canclePremium`, {

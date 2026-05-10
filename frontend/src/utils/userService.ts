@@ -6,7 +6,7 @@ type UserResponse = {
     data: BackendUser;
 }
 export interface UserData {
-  id: number;
+  id: string | number;
   username: string;
   displayName: string;
   avatarUrl?: string;
@@ -30,7 +30,7 @@ export const userService = {
         return response.json();
     },
 
-    async getUserIdByUsername(username: string): Promise<number> {
+    async getUserIdByUsername(username: string): Promise<string | number> {
         const response = await fetch(apiUrl(`/api/v1/users/${username}`));
         if (!response.ok) {
             throw new Error("Failed to fetch user ID");
@@ -53,7 +53,7 @@ export const userService = {
         return data.data.profile_picture;
     },
 
-    async getUserPostsCount(userId: number): Promise<number> {
+    async getUserPostsCount(userId: string | number): Promise<number> {
         const response = await fetch(apiUrl(`/api/v1/users/${userId}/posts`));
         if (!response.ok) {
             throw new Error("Failed to fetch user posts count");

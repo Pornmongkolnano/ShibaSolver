@@ -1,4 +1,5 @@
 "use client";
+import { getApiBaseUrl } from "@/utils/api";
 
 import { useEffect, useState } from "react";
 
@@ -100,7 +101,7 @@ export default function usePostComments(
           return;
         }
 
-        const BASE_URL = process.env.NEXT_PUBLIC_API_URL ;
+        const BASE_URL = getApiBaseUrl() ;
         const url = `${BASE_URL}/api/v1/comments/post/${encodeURIComponent(String(postId))}?sort=${sort}`;  
         
         // inside usePostComments, replace the fetch error handling

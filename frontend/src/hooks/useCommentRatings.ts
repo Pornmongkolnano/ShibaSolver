@@ -1,3 +1,4 @@
+import { getApiBaseUrl } from "@/utils/api";
 import { useState, useEffect } from 'react';
 import { CommentData } from '@/components/comment/types';
 import { profileCommentData } from '@/components/profile/profile_content/ProfileComment';
@@ -20,7 +21,7 @@ export default function useCommentRatings(comments: profileCommentData[] | null)
         comments.map(async (comment) => {
           try {
             const response = await fetch(
-              `${process.env.NEXT_PUBLIC_API_URL}/api/v1/ratings/check?target_type=comment&target_id=${comment.comment_id}`,
+              `${getApiBaseUrl()}/api/v1/ratings/check?target_type=comment&target_id=${comment.comment_id}`,
               { credentials: 'include' }
             );
 

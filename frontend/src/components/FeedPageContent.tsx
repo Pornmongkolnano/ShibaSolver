@@ -1,4 +1,5 @@
 "use client";
+import { getApiBaseUrl } from "@/utils/api";
 
 import Post, { PostData } from "@/components/post/Post";
 import Notification, { NotificationData } from "@/components/notification/Notification";
@@ -21,7 +22,7 @@ interface ApiResponse {
 
 export default function Home() {
 
-  const BASE = process.env.NEXT_PUBLIC_API_URL  ;
+  const BASE = getApiBaseUrl()  ;
 
   const { posts, setPosts, isLoading, error } = useFetchFeeds();
 

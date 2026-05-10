@@ -1,18 +1,25 @@
 "use client";
-
+import { apiJson } from "@/utils/api";
 import { useEffect, useState } from "react";
 
 export type CurrentUser = {
-  user_id: number;
+  id?: string;
+  user_id: string | number;
   user_name: string;
+  username?: string;
   display_name: string;
+  displayName?: string;
   google_account?: string | null;
   is_premium?: boolean;
+  isPremium?: boolean;
   user_state?: string | null;
   education_level: string;
+  educationLevel?: string | null;
   bio?: string | null;
   interested_subjects?: string[] | null;
+  interestedSubjects?: string[] | null;
   profile_picture?: string | null;
+  avatarUrl?: string | null;
   like?: number;
   dislike?: number;
 };
@@ -61,18 +68,9 @@ export function useCurrentUser(): UseCurrentUserResult {
           };
           if (!aborted) setData(mock);
         } else {
-          const BASE_URL = process.env.NEXT_PUBLIC_API_URL  ;
-          const res = await fetch(`${BASE_URL}/api/v1/auth/me`, {
+          const payload = await apiJson<CurrentUser>("/api/v1/auth/me", {
             signal: controller.signal,
-            credentials: "include",
           });
-          
-          if (!res.ok) {
-            const body = await res.json().catch(() => ({}));
-            throw new Error(body?.message || `Request failed (${res.status})`);
-          }
-          
-          const payload = await res.json();
           const currentUser: CurrentUser | null = payload?.data ?? null;
           if (!aborted) {
             setData(currentUser);
@@ -92,7 +90,6 @@ export function useCurrentUser(): UseCurrentUserResult {
       aborted = true;
       controller.abort();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nonce]);
 
   return { user: data, isLoading: loading, error, refetch };

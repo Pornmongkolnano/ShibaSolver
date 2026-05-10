@@ -1,3 +1,4 @@
+import { getApiBaseUrl } from "@/utils/api";
 import { useState } from 'react';
 
 interface DeleteApiResponse {
@@ -11,7 +12,7 @@ interface DeleteApiResponse {
 export const useDeletePost = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL  ;
+  const API_BASE = getApiBaseUrl()  ;
   const deletePost = async (postId: string): Promise<DeleteApiResponse> => {
     setIsDeleting(true);
     setError(null);

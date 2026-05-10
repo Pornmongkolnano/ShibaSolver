@@ -1,5 +1,5 @@
 "use client";
-
+import { apiFetch, parseApiJson } from "@/utils/api";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -13,27 +13,18 @@ export default function LogOut() {
     setIsLoggingOut(true);
     setError(null);
 
-    const API_BASE = process.env.NEXT_PUBLIC_API_URL  ;
-
     try {
-      const response = await fetch(`${API_BASE}/api/v1/auth/logout`, {
+      const response = await apiFetch("/api/v1/auth/logout", {
         method: "POST",
-        credentials: "include",
       });
+      await parseApiJson(response);
 
-      if (!response.ok) {
-        const body = await response.json().catch(() => ({}));
-        throw new Error(body?.message || "Failed to log out");
-      }
-
-      // Clear any client-side tokens/cookies we might have stored
       if (typeof window !== "undefined") {
         localStorage.removeItem("authToken");
         localStorage.removeItem("userData");
         localStorage.removeItem("username");
         sessionStorage.removeItem("prefill_display_name");
         sessionStorage.removeItem("prefill_avatar_url");
-        document.cookie = "ss_token=; Max-Age=0; path=/;";
       }
 
       window.dispatchEvent(new Event("auth:logout"));

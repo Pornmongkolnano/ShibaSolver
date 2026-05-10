@@ -1,4 +1,5 @@
 "use client";
+import { getApiBaseUrl } from "@/utils/api";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -12,7 +13,7 @@ export interface ReportAccountDisplayData {
 }
 
 const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL  ;
+  getApiBaseUrl()  ;
 
 const DEFAULT_AVATAR = "/image/DefaultAvatar.png";
 

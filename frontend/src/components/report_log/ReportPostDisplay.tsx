@@ -1,4 +1,5 @@
 "use client";
+import { getApiBaseUrl } from "@/utils/api";
 
 import { useEffect, useMemo, useState } from "react";
 import { slugify } from "@/utils/slugify";
@@ -28,7 +29,7 @@ export interface ReportPostDisplayData {
 }
 
 const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL  ;
+  getApiBaseUrl()  ;
 
 const DEFAULT_AVATAR = "/image/DefaultAvatar.png";
 

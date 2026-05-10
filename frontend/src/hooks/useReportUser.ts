@@ -1,3 +1,4 @@
+import { getApiBaseUrl } from "@/utils/api";
 import { useState } from 'react';
 
 // 1. สร้าง Interface Payload ใหม่ให้ตรงกับ API (ไม่มี target_type)
@@ -15,7 +16,7 @@ interface ReportApiResponse {
 export const useReportUser = () => {
   const [isReporting, setIsReporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL  ;
+  const API_BASE = getApiBaseUrl()  ;
   const reportUser = async (userId: string, reason: string): Promise<ReportApiResponse | undefined> => {
     setIsReporting(true);
     setError(null);

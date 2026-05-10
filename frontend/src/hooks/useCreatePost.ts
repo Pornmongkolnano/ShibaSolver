@@ -1,3 +1,4 @@
+import { getApiBaseUrl } from "@/utils/api";
 import { useState } from 'react';
 import { NewPostData } from '@/components/post/CreatePostModal';
 import { PostData } from '@/components/post/Post';
@@ -11,7 +12,7 @@ interface ApiResponse {
 export const useCreatePost = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL  ;
+  const API_BASE = getApiBaseUrl()  ;
   const createPost = async (postData: NewPostData): Promise<ApiResponse> => {
     setIsCreating(true);
     setError(null);

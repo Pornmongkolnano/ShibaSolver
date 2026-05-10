@@ -1,3 +1,4 @@
+import { getApiBaseUrl } from "@/utils/api";
 import React, { useState } from 'react';
 
 // No 'styled-components' or './BannedUser.css' import is needed
@@ -20,7 +21,7 @@ const BannedUser: React.FC<BannedUserProps> = ({
 
   const [isUnbanning, setIsUnbanning] = useState(false);
 
-  const BASE = process.env.NEXT_PUBLIC_API_URL   ;
+  const BASE = getApiBaseUrl()   ;
 
   const formatDateDMY = (iso?: string) => {
     if (!iso) return '';

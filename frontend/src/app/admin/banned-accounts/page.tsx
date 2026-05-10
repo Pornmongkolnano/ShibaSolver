@@ -1,4 +1,5 @@
 'use client';
+import { getApiBaseUrl } from "@/utils/api";
 import BannedUser from '@/components/banned_log/banned_user';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -41,7 +42,7 @@ const mockBannedUsers = [
 ];
 
 export default function BannedAccountsPage() {
-  const BASE = process.env.NEXT_PUBLIC_API_URL  ;
+  const BASE = getApiBaseUrl()  ;
   const [bannedUsers, setBannedUsers] = useState<BannedUserData[]>([]);
   const [isLoadingBanned, setIsLoadingBanned] = useState(true);
   const [errorBanned, setErrorBanned] = useState<string | null>(null);

@@ -1,3 +1,4 @@
+import { getApiBaseUrl } from "@/utils/api";
 import { useState, useEffect } from "react";
 
 import { CommentContent, UserLikeStatus } from "@/components/comment/types";
@@ -42,7 +43,7 @@ export const useCommentActions = (
   );
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const BASE_URL = process.env.NEXT_PUBLIC_API_URL ;
+  const BASE_URL = getApiBaseUrl() ;
 
   async function postRate(
     target_type: "post" | "comment",

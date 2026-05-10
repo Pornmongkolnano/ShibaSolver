@@ -11,7 +11,7 @@ import ShibaError from "@/components/error/ShibaError";
 import { useParams } from "next/navigation";
 
 type UserProfileProps = {
-  id: number;
+  id: string | number;
   username: string;
   displayName: string;
   avatarUrl?: string;

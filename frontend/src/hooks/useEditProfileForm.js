@@ -1,4 +1,5 @@
 "use client"
+import { getApiBaseUrl } from "@/utils/api";
 import { useEffect, useState, useRef } from "react";
 import { uploadImageToCloudinary } from "@/utils/uploadImage";
 // import type { MappedUser } from "./useUserProfile"; // Uncomment and adjust if using TypeScript
@@ -24,7 +25,7 @@ const subjects = [
 const educationLevels = ["High School", "Undergraduate", "Graduate", "Other"];
 
 export default function useEditProfileForm({ userData }) {
-    const apiBase = () => process.env.NEXT_PUBLIC_API_URL   ;
+    const apiBase = () => getApiBaseUrl()   ;
     
       // Initialize form data with user data or default values
       const [formData, setFormData] = useState({

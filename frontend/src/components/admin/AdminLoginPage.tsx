@@ -15,9 +15,17 @@ export default function AdminLoginPage() {
 
   // Check if admin is already authenticated
   useEffect(() => {
-    if (isAdminAuthenticated()) {
-      router.push('/admin');
-    }
+    let cancelled = false;
+
+    isAdminAuthenticated().then((authenticated) => {
+      if (!cancelled && authenticated) {
+        router.push('/admin');
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [isAdminAuthenticated, router]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {

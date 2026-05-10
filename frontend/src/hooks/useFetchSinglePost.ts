@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { PostData } from '@/components/post/Post';
+import { apiJson } from '@/utils/api';
 
 interface ApiResponse {
   success: boolean;
-  data: PostData[];
+  data: PostData | PostData[];
 }
 
 export const useFetchSinglePost = (postId: string) => {
@@ -14,14 +15,13 @@ export const useFetchSinglePost = (postId: string) => {
   useEffect(() => {
     const fetchPosts = async () => {
       try {
-        const response = await fetch(`/api/v1/posts/${postId}`);
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch posts');
-        }
-        const responseData: ApiResponse = await response.json();
-
-        setPost(responseData.data[0] || null);
+        const responseData: ApiResponse = await apiJson<PostData | PostData[]>(
+          `/api/v1/posts/${postId}`
+        ) as ApiResponse;
+        const postData = Array.isArray(responseData.data)
+          ? responseData.data[0]
+          : responseData.data;
+        setPost(postData || null);
 
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An unknown error occurred.');

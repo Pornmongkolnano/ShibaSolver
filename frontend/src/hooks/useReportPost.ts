@@ -1,3 +1,4 @@
+import { getApiBaseUrl } from "@/utils/api";
 import { useState } from 'react';
 
 // Interface สำหรับข้อมูลที่จะส่งไป Report
@@ -39,7 +40,7 @@ export const useReportPost = () => {
       reason: reason,
     };
 
-    const API_BASE = process.env.NEXT_PUBLIC_API_URL  ;
+    const API_BASE = getApiBaseUrl()  ;
 
     try {
       const response = await fetch(`${API_BASE}/api/v1/reports/content`, {

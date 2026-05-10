@@ -1,3 +1,4 @@
+import { getApiBaseUrl } from "@/utils/api";
 import { useState } from 'react';
 import { PostData } from '@/components/post/Post';
 import { UpdatedPostData } from '@/components/post/EditPostModal';
@@ -35,7 +36,7 @@ export const useUpdatePost = () => {
       post_image: dataToUpdate.imageUrl || null, // ✅ send Cloudinary URL
     };
 
-    const API_BASE = process.env.NEXT_PUBLIC_API_URL  ;
+    const API_BASE = getApiBaseUrl()  ;
 
     try {
       const response = await fetch(`${API_BASE}/api/v1/posts/${postId}`, {

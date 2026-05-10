@@ -1,5 +1,4 @@
 "use client";
-
 import React from "react";
 import { useState } from "react";
 
@@ -61,10 +60,6 @@ const subjects = [
 // };
 
 const educationLevels = ["High School", "Undergraduate", "Graduate", "Other"];
-
-// function apiBase(): string {
-//   return process.env.NEXT_PUBLIC_API_URL ;
-// }
 
 export default function RegisterForm({ initial = {} }: Props) {
   const {
