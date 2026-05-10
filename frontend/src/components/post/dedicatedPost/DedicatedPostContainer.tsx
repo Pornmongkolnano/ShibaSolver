@@ -1,15 +1,15 @@
+import { apiUrl } from "@/utils/api";
 import DedicatedPost, { type DedicatedPostData } from '@/components/post/dedicatedPost/DedicatedPost'
 
 
 interface Props {
   postId: string;
 }
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ;
 
 async function getPostWithRatings(postId: string): Promise<DedicatedPostData> {
   const [postRes, ratingRes] = await Promise.all([
-    fetch(`${API_BASE}/api/v1/posts/${postId}`, { cache: 'no-store' }),
-    fetch(`${API_BASE}/api/v1/ratings/summary?target_type=post&ids=${postId}`, {
+    fetch(apiUrl(`/api/v1/posts/${postId}`), { cache: 'no-store' }),
+    fetch(apiUrl(`/api/v1/ratings/summary?target_type=post&ids=${postId}`), {
       cache: 'no-store',
       credentials: 'include',
     }),
@@ -26,7 +26,7 @@ async function getPostWithRatings(postId: string): Promise<DedicatedPostData> {
   // --- Handle rating response gracefully ---
   if (ratingRes.ok) {
     const ratingJson = await ratingRes.json();
-    const found = ratingJson.data?.find((r: any) => r.id === Number(postId));
+    const found = ratingJson.data?.find((r: any) => String(r.id) === String(postId));
     if (found) rating = found;
   } else if (ratingRes.status === 401) {
     console.warn('User not logged in, skipping rating summary');

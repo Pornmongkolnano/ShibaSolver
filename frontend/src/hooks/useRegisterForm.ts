@@ -1,8 +1,9 @@
+import { getApiBaseUrl } from "@/utils/api";
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { uploadImageToCloudinary } from "@/utils/uploadImage";
 
-const apiBase = () => process.env.NEXT_PUBLIC_API_URL   ;
+const apiBase = () => getApiBaseUrl()   ;
 
 type Initial = {
   username?: string;

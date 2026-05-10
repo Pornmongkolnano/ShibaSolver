@@ -1,3 +1,4 @@
+import { getApiBaseUrl } from "@/utils/api";
 import { useState, useEffect } from 'react';
 
 export default function useCommentRating(commentId: string) {
@@ -11,7 +12,7 @@ export default function useCommentRating(commentId: string) {
       setIsLoading(true);
       try {
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/v1/ratings/check?target_type=comment&target_id=${commentId}`,
+          `${getApiBaseUrl()}/api/v1/ratings/check?target_type=comment&target_id=${commentId}`,
           { credentials: 'include' }
         );
 

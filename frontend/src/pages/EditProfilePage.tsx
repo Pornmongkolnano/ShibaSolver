@@ -7,7 +7,7 @@ import ShibaError from "@/components/error/ShibaError";
 import { exportTraceState } from "next/dist/trace";
 
 type InformationProps = {
-  id: number;
+  id: string | number;
   username: string;
   displayName: string;
   avatarUrl?: string;

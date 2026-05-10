@@ -53,10 +53,6 @@ export default function SearchComponent({
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const popoverButtonRef = useRef<HTMLButtonElement | null>(null);
 
-
-  const BASE_URL =
-    process.env.NEXT_PUBLIC_API_URL;
-
   // Close on outside click
   useEffect(() => {
     function onClickAway(e: MouseEvent) {

@@ -1,4 +1,5 @@
 "use client";
+import { getApiBaseUrl } from "@/utils/api";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -7,7 +8,7 @@ import { Avatar, Chip } from "@mui/material";
 import { userService } from "@/utils/userService";
 
 const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL  ;
+  getApiBaseUrl()  ;
 
 const DEFAULT_AVATAR = "/image/DefaultAvatar.png";
 

@@ -1,4 +1,5 @@
 "use client";
+import { getApiBaseUrl } from "@/utils/api";
 
 import { useState, useEffect, useMemo } from "react";
 import { PostData } from "@/components/post/Post";
@@ -12,7 +13,7 @@ type StatsMap = Record<
   }
 >;
 
-const FALLBACK_API_URL = process.env.NEXT_PUBLIC_API_URL  ;
+const FALLBACK_API_URL = getApiBaseUrl()  ;
 
 export default function usePostRatings(posts: PostData[] | null) {
   const [postRatings, setPostRatings] = useState<RatingMap>({});

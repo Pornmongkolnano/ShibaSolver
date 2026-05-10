@@ -1,4 +1,5 @@
 "use client";
+import { getApiBaseUrl } from "@/utils/api";
 
 import { useEffect, useState, useRef } from "react";
 
@@ -43,7 +44,7 @@ type UseSearchResult = {
 };
 
 // Move BASE_URL outside the component or use a constant
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL  ;
+const BASE_URL = getApiBaseUrl()  ;
 
 export function useSearch({
   mode,

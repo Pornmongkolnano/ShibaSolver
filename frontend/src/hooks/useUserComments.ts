@@ -1,4 +1,5 @@
 "use client";
+import { getApiBaseUrl } from "@/utils/api";
 
 import { useEffect, useState, useCallback } from "react";
 import { userService } from "@/utils/userService";
@@ -28,7 +29,7 @@ export default function useUserComments(
   const [totalPages, setTotalPages] = useState(0);
   const [totalComments, setTotalComments] = useState(0);
 
-  const BASE_URL = process.env.NEXT_PUBLIC_API_URL ;
+  const BASE_URL = getApiBaseUrl() ;
   const COMMENTS_PER_PAGE = 10;
 
   useEffect(() => {
@@ -71,7 +72,6 @@ export default function useUserComments(
       setError(null);
 
       try {
-        const token = localStorage.getItem("authToken");
         const commentResponse = await fetch(
           `${BASE_URL}/api/v1/comments/user/${userId}?limit=${COMMENTS_PER_PAGE}&page=${pageNum}&sort=latest`,
           {

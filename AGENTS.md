@@ -96,7 +96,7 @@ SWAGGER_SERVER_URL=http://localhost:5000
 API_BASE_URL=http://localhost:5000
 ```
 
-`DATABASE_URL`, `JWT_SECRET`, and `GOOGLE_CLIENT_ID` are required for real backend use.
+`DATABASE_URL` and `GOOGLE_CLIENT_ID` are required for real backend use.
 
 ### Frontend
 
@@ -104,16 +104,15 @@ Use `frontend/.env.local` for public browser variables:
 
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:5000
-NEXT_PUBLIC_BACKEND_URL=http://localhost:5000
 NEXT_PUBLIC_USE_MOCK=0
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=replace-with-google-oauth-client-id
+NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=replace-with-cloudinary-cloud-name
+NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET=replace-with-unsigned-upload-preset
 ```
 
-The code uses both `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_BACKEND_URL`; keep them aligned until the API base handling is consolidated.
+Frontend code should route API calls through `frontend/src/utils/api.ts`; `NEXT_PUBLIC_BACKEND_URL` is kept only as a compatibility fallback inside that helper.
 
-Image upload currently uses hard-coded Cloudinary values in `frontend/src/utils/uploadImage.ts`:
-
-- Cloud name: `dkhggwcub`
-- Upload preset: `unsigned_preset`
+Image upload reads Cloudinary settings from environment variables in `frontend/src/utils/uploadImage.ts`.
 
 Move these to env variables before production use.
 
@@ -230,17 +229,14 @@ Next build warning observed:
    - Add required extensions explicitly.
    - Prefer migration files over multiple divergent table snippets.
 
-4. Backend lacks a visible centralized error handler after route mounting.
-   - Several controllers call `next(err)`, which can fall through to Express defaults.
-   - Add a final JSON error middleware to avoid HTML/default error responses.
+4. Backend has a centralized JSON error handler in `backend/middleware/errorHandler.js`.
+   - Keep new controllers on `asyncHandler`/`createError` from `backend/utils/apiResponse.js` for consistent responses.
 
-5. Frontend API base variables are inconsistent.
-   - Many files use `NEXT_PUBLIC_API_URL`.
-   - Some utility/report files use `NEXT_PUBLIC_BACKEND_URL`.
-   - Missing env values will produce requests to `undefined/api/...`.
+5. Frontend API base handling is centralized in `frontend/src/utils/api.ts`.
+   - New code should use `apiFetch`, `apiJson`, `apiUrl`, or `getApiBaseUrl`.
+   - Do not read `NEXT_PUBLIC_API_URL` directly outside the helper.
 
-6. Cloudinary upload settings are hard-coded in frontend source.
-   - Move cloud name and upload preset to `.env.local`.
+6. Cloudinary upload settings are env-driven.
    - Confirm unsigned upload preset policy before production.
 
 7. Legacy `frontend/src/pages` routes still build.

@@ -13,17 +13,22 @@ export default function AdminProtectedRoute({ children }: AdminProtectedRoutePro
   const router = useRouter();
 
   useEffect(() => {
-    const checkAuth = () => {
-      if (!isAdminAuthenticated()) {
+    let cancelled = false;
+
+    const checkAuth = async () => {
+      const authenticated = await isAdminAuthenticated();
+      if (cancelled) return;
+      if (!authenticated) {
         router.push('/admin-login');
         return;
       }
       setIsChecking(false);
     };
 
-    // Small delay to prevent flash of content
-    const timer = setTimeout(checkAuth, 100);
-    return () => clearTimeout(timer);
+    checkAuth();
+    return () => {
+      cancelled = true;
+    };
   }, [isAdminAuthenticated, router]);
 
   if (isChecking) {

@@ -1,9 +1,11 @@
 "use client";
+import { getApiBaseUrl } from "@/utils/api";
 
 import { useEffect, useMemo, useState } from "react";
 
 export type BackendUser = {
-  user_id: number;
+  id?: string;
+  user_id: string | number;
   google_account?: string | null;
   is_premium?: boolean;
   user_state?: string | null;
@@ -18,7 +20,7 @@ export type BackendUser = {
 };
 
 export type MappedUser = {
-  id: number;
+  id: string | number;
   username: string;
   displayName: string;
   avatarUrl?: string;
@@ -98,7 +100,7 @@ export function useUserProfile(username?: string | null): UseUserResult {
         } else {
           // Adjust BASE_URL to your backend origin as needed
           const BASE_URL =
-            process.env.NEXT_PUBLIC_API_URL  ;
+            getApiBaseUrl()  ;
           // Backend should provide this route; alternatively implement resolve-username -> id
           const res = await fetch(
             `${BASE_URL}/api/v1/users/${encodeURIComponent(username)}`,
@@ -159,7 +161,6 @@ export function useUserProfile(username?: string | null): UseUserResult {
       aborted = true;
       controller.abort();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [username, nonce]);
 
   const user = useMemo(() => (data ? mapBackendToUi(data, shibaMeter) : null), [data, shibaMeter]);

@@ -1,4 +1,5 @@
 "use client";
+import { getApiBaseUrl } from "@/utils/api";
 
 import { useCallback, useEffect, useState } from "react";
 import type { PostData } from "@/components/post/Post"; // type-only import
@@ -29,7 +30,7 @@ export default function useUserPosts(
   const [totalPages, setTotalPages] = useState(0);
   const [totalPosts, setTotalPosts] = useState(0);
 
-  const BASE_URL = process.env.NEXT_PUBLIC_API_URL ;
+  const BASE_URL = getApiBaseUrl() ;
   const POSTS_PER_PAGE = 5;
 
   useEffect(() => {

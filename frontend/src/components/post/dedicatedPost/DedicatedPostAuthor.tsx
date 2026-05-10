@@ -1,4 +1,5 @@
 'use client';
+import { getApiBaseUrl } from "@/utils/api";
 
 import { useState, useEffect } from 'react';
 
@@ -32,7 +33,7 @@ const PostAuthor = ({
   const [dislikes, setDislikes] = useState(stats.dislikes);
   const [loading, setLoading] = useState(false);
 
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL  ;
+  const API_BASE = getApiBaseUrl()  ;
 
   // 🚀 ==============================
   // FETCH USER RATING ON PAGE LOAD

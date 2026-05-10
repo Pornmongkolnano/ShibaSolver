@@ -13,7 +13,7 @@ import ReportUserModal from './ReportUserModal';
 import { Flag } from 'lucide-react';
 
 type UserProfile = {
-  id: number;
+  id: string | number;
   username: string;
   displayName: string;
   avatarUrl?: string;

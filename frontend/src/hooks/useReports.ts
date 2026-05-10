@@ -1,3 +1,4 @@
+import { getApiBaseUrl } from "@/utils/api";
 import { useState } from "react";
 import { Report } from "@/components/report_log/ReportType";
 import {
@@ -11,7 +12,7 @@ export default function useReports() {
   const [loading, setLoading] = useState(false);
 
   const BACKEND_URL =
-    process.env.NEXT_PUBLIC_BACKEND_URL  ;
+    getApiBaseUrl()  ;
 
   const fetchPostReports = async (status: "unreviewed" | "reviewed") => {
     setLoading(true);
