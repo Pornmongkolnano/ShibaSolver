@@ -9,6 +9,7 @@ const helmet = require("helmet");
 const hpp = require("hpp");
 const swaggerUi = require('swagger-ui-express');
 const swaggerDocument = require('./docs/openapi');
+const { errorHandler, notFound } = require("./middleware/errorHandler");
 
 loadEnv();
 requiredEnv(["DATABASE_URL"]);
@@ -88,30 +89,8 @@ app.get('/api-docs.json', (_req, res) => {
   app.use("/api/v1/notifications", notificationRouter);
   app.use("/api/v1/search", searchRouter);
 
-  app.use((req, res) => {
-    res.status(404).json({
-      success: false,
-      error: {
-        code: "NOT_FOUND",
-        message: `Route not found: ${req.method} ${req.originalUrl}`,
-      },
-    });
-  });
-
-  app.use((err, _req, res, _next) => {
-    console.error("Request error:", err);
-    const statusCode = err.statusCode || err.status || 500;
-    res.status(statusCode).json({
-      success: false,
-      error: {
-        code: err.code || "INTERNAL_SERVER_ERROR",
-        message:
-          statusCode >= 500
-            ? "Internal server error"
-            : err.message || "Request failed",
-      },
-    });
-  });
+  app.use(notFound);
+  app.use(errorHandler);
 
   const PORT = process.env.PORT || 5000;
 

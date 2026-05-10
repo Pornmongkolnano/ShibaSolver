@@ -1,168 +1,144 @@
+const prisma = require("../lib/prisma");
+const { asyncHandler, createError, sendCreated } = require("../utils/apiResponse");
+const { publicReport } = require("../utils/apiPresenters");
+const {
+  getAuthUserId,
+  readLimitedText,
+  readStringId,
+  readTargetType,
+} = require("../utils/request");
+
+const DUPLICATE_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+function duplicateWindowStart() {
+  return new Date(Date.now() - DUPLICATE_WINDOW_MS);
+}
+
+function reportTargetCreateData(targetType, targetId) {
+  if (targetType === "user") {
+    return { targetType: "USER", targetUserId: targetId };
+  }
+  if (targetType === "post") {
+    return { targetType: "POST", targetPostId: targetId };
+  }
+  return { targetType: "COMMENT", targetCommentId: targetId };
+}
+
+function reportTargetWhere(targetType, targetId) {
+  if (targetType === "user") {
+    return { targetType: "USER", targetUserId: targetId };
+  }
+  if (targetType === "post") {
+    return { targetType: "POST", targetPostId: targetId };
+  }
+  return { targetType: "COMMENT", targetCommentId: targetId };
+}
+
+async function assertReportTargetExists(targetType, targetId) {
+  if (targetType === "user") {
+    const user = await prisma.user.findFirst({
+      where: { id: targetId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!user) throw createError(404, "TARGET_NOT_FOUND", "Target user not found");
+    return;
+  }
+
+  const model = targetType === "post" ? prisma.post : prisma.comment;
+  const target = await model.findFirst({
+    where: { id: targetId, deletedAt: null },
+    select: { id: true },
+  });
+  if (!target) {
+    throw createError(
+      404,
+      "TARGET_NOT_FOUND",
+      `The ${targetType} you are trying to report has been removed or not found`
+    );
+  }
+}
+
+async function assertNoRecentDuplicateReport(reporterId, targetType, targetId) {
+  const duplicate = await prisma.report.findFirst({
+    where: {
+      reporterId,
+      ...reportTargetWhere(targetType, targetId),
+      createdAt: { gte: duplicateWindowStart() },
+    },
+    select: { id: true },
+  });
+
+  if (duplicate) {
+    throw createError(
+      429,
+      "DUPLICATE_REPORT",
+      `You have already reported this ${targetType} recently`
+    );
+  }
+}
+
+async function createReport({ reporterId, targetType, targetId, reason }) {
+  await assertReportTargetExists(targetType, targetId);
+  await assertNoRecentDuplicateReport(reporterId, targetType, targetId);
+
+  return prisma.report.create({
+    data: {
+      reporterId,
+      reason,
+      ...reportTargetCreateData(targetType, targetId),
+    },
+  });
+}
+
 /**
  * @desc    Report a violating account (user)
  * @route   POST /api/v1/reports/accounts
  * @access  Private
- * @body    { target_id: number, reason: string }
+ * @body    { target_id: string, reason: string }
  */
-exports.reportAccount = async (req, res, next) => {
-  const pool = req.app.locals.pool;
-  try {
-    const reporterId = Number.parseInt(req.user?.uid, 10);
-    const { target_id, reason } = req.body || {};
+exports.reportAccount = asyncHandler(async (req, res) => {
+  const reporterId = getAuthUserId(req);
+  const targetId = readStringId(req.body?.target_id, "target_id");
+  const reason = readLimitedText(req.body?.reason, "reason", { min: 3, max: 1000 });
 
-    // 1 Validation
-    if (!Number.isInteger(reporterId) || reporterId <= 0) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
-    }
-    if (!Number.isInteger(target_id) || target_id <= 0) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid target_id" });
-    }
-    if (reporterId === target_id) {
-      return res
-        .status(400)
-        .json({ success: false, message: "You cannot report yourself" });
-    }
-    if (!reason || typeof reason !== "string" || reason.trim().length < 3) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Reason is required and must be valid" });
-    }
-
-    // 2 ตรวจสอบว่า user ที่ถูกรายงานมีอยู่จริง
-    const userCheck = await pool.query(
-      "SELECT user_id FROM users WHERE user_id = $1",
-      [target_id]
-    );
-    if (userCheck.rowCount === 0) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Target user not found" });
-    }
-
-    // 3 ป้องกันการรายงานซ้ำภายใน 24 ชม.
-    const dupCheck = await pool.query(
-      `SELECT report_id 
-       FROM reports 
-       WHERE reporter_id = $1 
-         AND target_type = 'user'
-         AND target_id = $2
-         AND created_at >= (now() - interval '24 hours')
-       LIMIT 1`,
-      [reporterId, target_id]
-    );
-    if (dupCheck.rowCount > 0) {
-      return res.status(429).json({
-        success: false,
-        message: "You have already reported this user recently",
-      });
-    }
-
-    // 4 บันทึกลง reports table
-    const insert = await pool.query(
-      `INSERT INTO reports (reporter_id, target_type, target_id, reason)
-       VALUES ($1, 'user', $2, $3)
-       RETURNING report_id, reporter_id, target_type, target_id, reason, status, created_at`,
-      [reporterId, target_id, reason.trim()]
-    );
-
-    return res.status(201).json({
-      success: true,
-      message: "User reported successfully",
-      data: insert.rows[0],
-    });
-  } catch (err) {
-    next(err);
+  if (reporterId === targetId) {
+    throw createError(400, "SELF_REPORT", "You cannot report yourself");
   }
-};
+
+  const report = await createReport({
+    reporterId,
+    targetType: "user",
+    targetId,
+    reason,
+  });
+
+  return sendCreated(res, {
+    message: "User reported successfully",
+    data: publicReport(report),
+  });
+});
 
 /**
  * @desc    Report a violating post or comment
  * @route   POST /api/v1/reports/content
  * @access  Private
- * @body    { target_type: "post"|"comment", target_id: number, reason: string }
+ * @body    { target_type: "post"|"comment", target_id: string, reason: string }
  */
-exports.reportPostOrComment = async (req, res, next) => {
-  const pool = req.app.locals.pool;
-  try {
-    const reporterId = Number.parseInt(req.user?.uid, 10);
-    const { target_type, target_id, reason } = req.body || {};
+exports.reportPostOrComment = asyncHandler(async (req, res) => {
+  const reporterId = getAuthUserId(req);
+  const targetType = readTargetType(req.body?.target_type);
+  const targetId = readStringId(req.body?.target_id, "target_id");
+  const reason = readLimitedText(req.body?.reason, "reason", { min: 3, max: 1000 });
 
-    // 1 Validation
-    if (!Number.isInteger(reporterId) || reporterId <= 0) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
-    }
+  const report = await createReport({
+    reporterId,
+    targetType,
+    targetId,
+    reason,
+  });
 
-    const allowedTypes = ["post", "comment"];
-    if (!allowedTypes.includes(target_type)) {
-      return res.status(400).json({
-        success: false,
-        message: `target_type must be one of: ${allowedTypes.join(", ")}`,
-      });
-    }
-
-    if (!Number.isInteger(target_id) || target_id <= 0) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid target_id" });
-    }
-
-    if (!reason || typeof reason !== "string" || reason.trim().length < 3) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Reason is required and must be valid" });
-    }
-
-    // 2 ตรวจสอบว่า content มีอยู่จริงและยังไม่ถูกลบ
-    let checkSql = "";
-    if (target_type === "post") {
-      checkSql = `SELECT post_id FROM posts WHERE post_id = $1 AND is_deleted = FALSE`;
-    } else {
-      checkSql = `SELECT comment_id FROM comments WHERE comment_id = $1 AND is_deleted = FALSE`;
-    }
-
-    const check = await pool.query(checkSql, [target_id]);
-    if (check.rowCount === 0) {
-      return res.status(400).json({
-        success: false,
-        message: `The ${target_type} you are trying to report has been removed or not found`,
-      });
-    }
-
-    // 3 ป้องกันการรายงานซ้ำใน 24 ชม.
-    const dup = await pool.query(
-      `SELECT report_id
-       FROM reports
-       WHERE reporter_id = $1
-         AND target_type = $2
-         AND target_id = $3
-         AND created_at >= (now() - interval '24 hours')
-       LIMIT 1`,
-      [reporterId, target_type, target_id]
-    );
-
-    if (dup.rowCount > 0) {
-      return res.status(429).json({
-        success: false,
-        message: `You have already reported this ${target_type} recently`,
-      });
-    }
-
-    // 4 แทรกข้อมูลรีพอร์ตใหม่
-    const insert = await pool.query(
-      `INSERT INTO reports (reporter_id, target_type, target_id, reason)
-       VALUES ($1, $2, $3, $4)
-       RETURNING report_id, reporter_id, target_type, target_id, reason, status, created_at`,
-      [reporterId, target_type, target_id, reason.trim()]
-    );
-
-    return res.status(201).json({
-      success: true,
-      message: `${target_type} reported successfully`,
-      data: insert.rows[0],
-    });
-  } catch (err) {
-    next(err);
-  }
-};
+  return sendCreated(res, {
+    message: `${targetType} reported successfully`,
+    data: publicReport(report),
+  });
+});

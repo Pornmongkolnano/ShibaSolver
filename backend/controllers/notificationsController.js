@@ -1,183 +1,132 @@
+const prisma = require("../lib/prisma");
+const { asyncHandler, createError, sendSuccess } = require("../utils/apiResponse");
+const { publicNotification } = require("../utils/apiPresenters");
+const { getAuthUserId, parseLimitOffset, readStringId } = require("../utils/request");
+
+function notificationWhere(req, extra = {}) {
+  return {
+    userId: getAuthUserId(req),
+    ...extra,
+  };
+}
+
+async function listNotifications(req, extraWhere = {}) {
+  const { limit, offset } = parseLimitOffset(req.query, {
+    defaultLimit: 20,
+    maxLimit: 100,
+  });
+  const where = notificationWhere(req, extraWhere);
+
+  const [total, notifications] = await prisma.$transaction([
+    prisma.notification.count({ where }),
+    prisma.notification.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      skip: offset,
+    }),
+  ]);
+
+  return {
+    total,
+    limit,
+    offset,
+    data: notifications.map(publicNotification),
+  };
+}
+
 /**
  * @desc    Get all notifications of current user (latest first)
- * @route   GET /api/notifications
+ * @route   GET /api/v1/notifications
  * @access  Private
  */
-exports.getNotifications = async (req, res) => {
-  try {
-    const pool = req.app.locals.pool;
-    const userId = req.user.uid;
-    const MAX_LIMIT = 100;
+exports.getNotifications = asyncHandler(async (req, res) => {
+  const { total, limit, offset, data } = await listNotifications(req);
 
-    let limit = Number.parseInt(req.query.limit, 10);
-    if (!Number.isInteger(limit) || limit <= 0) limit = 20;
-    limit = Math.min(limit, MAX_LIMIT);
-
-    let offset = Number.parseInt(req.query.offset, 10);
-    if (!Number.isInteger(offset) || offset < 0) offset = 0;
-
-    const { rows: countRows } = await pool.query(
-      `SELECT COUNT(*)::int AS total
-       FROM notifications
-       WHERE user_id = $1`,
-      [userId]
-    );
-    const total = countRows[0]?.total ?? 0;
-
-    const { rows } = await pool.query(
-      `
-      SELECT notification_id, notification_type, message, link, is_read, created_at
-      FROM notifications
-      WHERE user_id = $1
-      ORDER BY created_at DESC
-      LIMIT $2
-      OFFSET $3
-      `,
-      [userId, limit, offset]
-    );
-
-    res.json({
-      success: true,
-      count: rows.length,
+  return sendSuccess(res, {
+    count: data.length,
+    total,
+    pagination: { limit, offset },
+    meta: {
+      limit,
+      offset,
       total,
-      pagination: { limit, offset },
-      data: rows
-    });
-  } catch (err) {
-    console.error('getNotifications error:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
+      hasNext: offset + data.length < total,
+      nextOffset: offset + data.length < total ? offset + limit : null,
+    },
+    data,
+  });
+});
 
 /**
  * @desc    Get unread notifications of current user
- * @route   GET /api/notifications/unread
+ * @route   GET /api/v1/notifications/unread
  * @access  Private
  */
-exports.getUnreadNotifications = async (req, res) => {
-  try {
-    const pool = req.app.locals.pool;
-    const userId = req.user.uid;
-    const MAX_LIMIT = 100;
+exports.getUnreadNotifications = asyncHandler(async (req, res) => {
+  const { total, limit, offset, data } = await listNotifications(req, {
+    readAt: null,
+  });
 
-    let limit = Number.parseInt(req.query.limit, 10);
-    if (!Number.isInteger(limit) || limit <= 0) limit = 20;
-    limit = Math.min(limit, MAX_LIMIT);
-
-    let offset = Number.parseInt(req.query.offset, 10);
-    if (!Number.isInteger(offset) || offset < 0) offset = 0;
-
-    const { rows: countRows } = await pool.query(
-      `SELECT COUNT(*)::int AS total
-       FROM notifications
-       WHERE user_id = $1 AND is_read = FALSE`,
-      [userId]
-    );
-    const total = countRows[0]?.total ?? 0;
-
-    const { rows } = await pool.query(
-      `
-      SELECT notification_id, notification_type, message, link, is_read, created_at
-      FROM notifications
-      WHERE user_id = $1 AND is_read = FALSE
-      ORDER BY created_at DESC
-      LIMIT $2
-      OFFSET $3
-      `,
-      [userId, limit, offset]
-    );
-
-    res.json({
-      success: true,
-      count: rows.length,
+  return sendSuccess(res, {
+    count: data.length,
+    total,
+    pagination: { limit, offset },
+    meta: {
+      limit,
+      offset,
       total,
-      pagination: { limit, offset },
-      data: rows
-    });
-  } catch (err) {
-    console.error('getUnreadNotifications error:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
+      hasNext: offset + data.length < total,
+      nextOffset: offset + data.length < total ? offset + limit : null,
+    },
+    data,
+  });
+});
 
 /**
  * @desc    Get unread notifications count (for badge)
- * @route   GET /api/notifications/unread-count
+ * @route   GET /api/v1/notifications/unread-count
  * @access  Private
  */
-exports.getUnreadCount = async (req, res) => {
-  try {
-    const pool = req.app.locals.pool;
-    const userId = req.user.uid;
+exports.getUnreadCount = asyncHandler(async (req, res) => {
+  const unread = await prisma.notification.count({
+    where: notificationWhere(req, { readAt: null }),
+  });
 
-    const { rows } = await pool.query(
-      `SELECT COUNT(*) AS count
-       FROM notifications
-       WHERE user_id = $1 AND is_read = FALSE`,
-      [userId]
-    );
-
-    res.json({ success: true, unread: Number(rows[0].count) });
-  } catch (err) {
-    console.error('getUnreadCount error:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
+  return sendSuccess(res, { unread });
+});
 
 /**
  * @desc    Mark a notification as read
- * @route   PATCH /api/notifications/:id/read
+ * @route   PATCH /api/v1/notifications/:id/read
  * @access  Private
- * @param   {id} notification ID
  */
-exports.markAsRead = async (req, res) => {
-  try {
-    const pool = req.app.locals.pool;
-    const userId = req.user.uid;
-    const notificationId = Number.parseInt(req.params.id, 10);
+exports.markAsRead = asyncHandler(async (req, res) => {
+  const notificationId = readStringId(req.params.id, "notification id");
+  const result = await prisma.notification.updateMany({
+    where: notificationWhere(req, { id: notificationId }),
+    data: { readAt: new Date() },
+  });
 
-    if (!Number.isInteger(notificationId) || notificationId <= 0) {
-      return res.status(400).json({ success: false, message: 'Invalid notification id' });
-    }
-
-    const { rowCount } = await pool.query(
-      `UPDATE notifications
-       SET is_read = TRUE
-       WHERE notification_id = $1 AND user_id = $2`,
-      [notificationId, userId]
-    );
-
-    if (rowCount === 0) {
-      return res.status(404).json({ success: false, message: 'Notification not found' });
-    }
-
-    res.json({ success: true });
-  } catch (err) {
-    console.error('markAsRead error:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
+  if (result.count === 0) {
+    throw createError(404, "NOTIFICATION_NOT_FOUND", "Notification not found");
   }
-};
+
+  return sendSuccess(res);
+});
 
 /**
  * @desc    Mark all notifications as read
- * @route   PATCH /api/notifications/read-all
+ * @route   PATCH /api/v1/notifications/read-all
  * @access  Private
  */
-exports.markAllAsRead = async (req, res) => {
-  try {
-    const pool = req.app.locals.pool;
-    const userId = req.user.uid;
+exports.markAllAsRead = asyncHandler(async (req, res) => {
+  const result = await prisma.notification.updateMany({
+    where: notificationWhere(req, { readAt: null }),
+    data: { readAt: new Date() },
+  });
 
-    await pool.query(
-      `UPDATE notifications
-       SET is_read = TRUE
-       WHERE user_id = $1 AND is_read = FALSE`,
-      [userId]
-    );
-
-    res.json({ success: true });
-  } catch (err) {
-    console.error('markAllAsRead error:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
+  return sendSuccess(res, {
+    data: { updated: result.count },
+  });
+});
