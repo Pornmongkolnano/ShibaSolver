@@ -13,13 +13,22 @@ const baseResponse = {
 
 const errorResponse = {
   type: 'object',
+  required: ['success', 'error'],
   properties: {
     success: { type: 'boolean', example: false },
-    message: { type: 'string' },
     error: {
       type: 'object',
-      nullable: true,
-      additionalProperties: true,
+      required: ['code', 'message'],
+      properties: {
+        code: { type: 'string', example: 'INVALID_ID' },
+        message: { type: 'string', example: 'postId is required' },
+        details: {
+          type: 'object',
+          nullable: true,
+          additionalProperties: true,
+          description: 'Only included outside production when available.',
+        },
+      },
     },
   },
 };
@@ -35,7 +44,7 @@ module.exports = {
       'REST API that powers the ShibaSolver platform. Authentication uses opaque session tokens stored as hashes server-side. Tokens can be supplied through the `Authorization: Bearer <token>` header or via the `ss_token` / `admin_access_token` cookies.',
     contact: {
       name: 'ShibaSolver Team',
-      url: 'https://github.com/hogetee/ShibaSolver',
+      url: 'https://github.com/Pornmongkolnano/ShibaSolver',
     },
   },
   servers: [
@@ -140,55 +149,92 @@ module.exports = {
       UserPublic: {
         type: 'object',
         properties: {
+          id: { type: 'string' },
           user_id: { type: 'string' },
+          username: { type: 'string', nullable: true },
           user_name: { type: 'string' },
+          displayName: { type: 'string', nullable: true },
           display_name: { type: 'string', nullable: true },
+          avatarUrl: { type: 'string', nullable: true },
           profile_picture: { type: 'string', nullable: true },
         },
       },
       PublicUserProfile: {
         type: 'object',
         properties: {
+          id: { type: 'string' },
           user_id: { type: 'string' },
+          username: { type: 'string', nullable: true },
           user_name: { type: 'string' },
+          displayName: { type: 'string', nullable: true },
           display_name: { type: 'string', nullable: true },
+          avatarUrl: { type: 'string', nullable: true },
           profile_picture: { type: 'string', nullable: true },
           bio: { type: 'string', nullable: true },
+          educationLevel: { type: 'string', nullable: true },
           education_level: { type: 'string', nullable: true },
+          interestedSubjects: {
+            type: 'array',
+            items: { type: 'string' },
+          },
           interested_subjects: {
             type: 'array',
             items: { type: 'string' },
-            nullable: true,
           },
           like: { type: 'integer', nullable: true },
           dislike: { type: 'integer', nullable: true },
+          status: {
+            type: 'string',
+            enum: ['ACTIVE', 'BANNED', 'SUSPENDED', 'DELETED'],
+          },
+          user_state: {
+            type: 'string',
+            enum: ['active', 'banned', 'suspended', 'deleted'],
+          },
+          isPremium: { type: 'boolean' },
+          is_premium: { type: 'boolean' },
           created_at: { type: 'string', format: 'date-time', nullable: true },
+          updated_at: { type: 'string', format: 'date-time', nullable: true },
         },
       },
       UserDetail: {
         type: 'object',
         properties: {
+          id: { type: 'string' },
           user_id: { type: 'string' },
           email: { type: 'string', format: 'email', nullable: true },
+          username: { type: 'string', nullable: true },
           user_name: { type: 'string', nullable: true },
+          displayName: { type: 'string', nullable: true },
           display_name: { type: 'string', nullable: true },
+          avatarUrl: { type: 'string', nullable: true },
           profile_picture: { type: 'string', nullable: true },
           bio: { type: 'string', nullable: true },
+          educationLevel: { type: 'string', nullable: true },
           education_level: { type: 'string', nullable: true },
+          interestedSubjects: {
+            type: 'array',
+            items: { type: 'string' },
+          },
           interested_subjects: {
             type: 'array',
             items: { type: 'string' },
-            nullable: true,
           },
           like: { type: 'integer', nullable: true },
           dislike: { type: 'integer', nullable: true },
+          isPremium: { type: 'boolean' },
           is_premium: { type: 'boolean' },
+          role: { type: 'string', enum: ['USER', 'ADMIN'] },
+          status: {
+            type: 'string',
+            enum: ['ACTIVE', 'BANNED', 'SUSPENDED', 'DELETED'],
+          },
           user_state: {
             type: 'string',
-            enum: ['normal', 'ban'],
-            default: 'normal',
+            enum: ['active', 'banned', 'suspended', 'deleted'],
           },
           created_at: { type: 'string', format: 'date-time', nullable: true },
+          updated_at: { type: 'string', format: 'date-time', nullable: true },
         },
       },
       AdminSummary: {
@@ -209,7 +255,7 @@ module.exports = {
           email: { type: 'string', format: 'email' },
           user_state: {
             type: 'string',
-            enum: ['normal', 'ban', 'suspend', 'deleted'],
+            enum: ['ban'],
           },
           banned_at: { type: 'string', format: 'date-time', nullable: true },
         },
@@ -217,21 +263,42 @@ module.exports = {
       Post: {
         type: 'object',
         properties: {
+          id: { type: 'string' },
           post_id: { type: 'string' },
+          authorId: { type: 'string' },
+          user_id: { type: 'string' },
+          poster_id: { type: 'string' },
           title: { type: 'string' },
+          body: { type: 'string' },
           description: { type: 'string' },
+          imageUrl: { type: 'string', nullable: true },
           post_image: { type: 'string', nullable: true },
+          problem_image: { type: 'string', nullable: true },
+          isSolved: { type: 'boolean' },
           is_solved: { type: 'boolean' },
           is_deleted: { type: 'boolean', nullable: true },
           created_at: { type: 'string', format: 'date-time' },
+          updated_at: { type: 'string', format: 'date-time', nullable: true },
           author: { $ref: '#/components/schemas/UserPublic' },
+          user_name: { type: 'string', nullable: true },
+          display_name: { type: 'string', nullable: true },
+          profile_picture: { type: 'string', nullable: true },
           likes: { type: 'integer', example: 5 },
           dislikes: { type: 'integer', example: 1 },
+          stats: {
+            type: 'object',
+            properties: {
+              likes: { type: 'integer' },
+              dislikes: { type: 'integer' },
+            },
+          },
           my_rating: {
             type: 'string',
-            enum: ['like', 'dislike', null],
+            enum: ['like', 'dislike'],
             nullable: true,
           },
+          liked_by_user: { type: 'boolean' },
+          disliked_by_user: { type: 'boolean' },
           tags: {
             type: 'array',
             items: { type: 'string' },
@@ -305,19 +372,42 @@ module.exports = {
       Report: {
         type: 'object',
         properties: {
+          id: { type: 'string' },
           report_id: { type: 'string' },
+          reporterId: { type: 'string' },
           reporter_id: { type: 'string' },
+          reviewerId: { type: 'string', nullable: true },
+          reviewer_id: { type: 'string', nullable: true },
+          targetType: {
+            type: 'string',
+            enum: ['user', 'post', 'comment'],
+          },
           target_type: {
             type: 'string',
             enum: ['user', 'post', 'comment'],
           },
-          target_id: { type: 'string' },
+          targetId: { type: 'string', nullable: true },
+          target_id: { type: 'string', nullable: true },
+          target_user_id: { type: 'string', nullable: true },
+          target_post_id: { type: 'string', nullable: true },
+          target_comment_id: { type: 'string', nullable: true },
           reason: { type: 'string' },
           status: {
             type: 'string',
             enum: ['pending', 'accepted', 'rejected'],
           },
           created_at: { type: 'string', format: 'date-time' },
+          reviewed_at: { type: 'string', format: 'date-time', nullable: true },
+        },
+      },
+      AdminReportStatusResult: {
+        type: 'object',
+        properties: {
+          report_id: { type: 'string' },
+          target_type: { type: 'string', enum: ['user', 'post', 'comment'] },
+          target_id: { type: 'string', nullable: true },
+          status: { type: 'string', enum: ['pending', 'accepted', 'rejected'] },
+          admin_id: { type: 'string' },
         },
       },
       AccountReport: {
@@ -325,10 +415,10 @@ module.exports = {
         properties: {
           report_id: { type: 'string' },
           reporter_id: { type: 'string' },
-          target_id: { type: 'string' },
+          target_id: { type: 'string', nullable: true },
           reporter_name: { type: 'string' },
-          target_name: { type: 'string' },
-          target_username: { type: 'string' },
+          target_name: { type: 'string', nullable: true },
+          target_username: { type: 'string', nullable: true },
           reason: { type: 'string' },
           status: {
             type: 'string',
@@ -342,11 +432,11 @@ module.exports = {
         properties: {
           report_id: { type: 'string' },
           reporter_id: { type: 'string' },
-          target_id: { type: 'string' },
+          target_id: { type: 'string', nullable: true },
           reporter_name: { type: 'string' },
-          post_title: { type: 'string' },
-          post_owner_name: { type: 'string' },
-          post_owner_username: { type: 'string' },
+          post_title: { type: 'string', nullable: true },
+          post_owner_name: { type: 'string', nullable: true },
+          post_owner_username: { type: 'string', nullable: true },
           reason: { type: 'string' },
           status: {
             type: 'string',
@@ -360,11 +450,11 @@ module.exports = {
         properties: {
           report_id: { type: 'string' },
           reporter_id: { type: 'string' },
-          target_id: { type: 'string' },
+          target_id: { type: 'string', nullable: true },
           reporter_name: { type: 'string' },
-          comment_text: { type: 'string' },
-          comment_owner_name: { type: 'string' },
-          comment_owner_username: { type: 'string' },
+          comment_text: { type: 'string', nullable: true },
+          comment_owner_name: { type: 'string', nullable: true },
+          comment_owner_username: { type: 'string', nullable: true },
           reason: { type: 'string' },
           status: {
             type: 'string',
@@ -387,7 +477,7 @@ module.exports = {
           dislikes: { type: 'integer' },
           my_rating: {
             type: 'string',
-            enum: ['like', 'dislike', null],
+            enum: ['like', 'dislike'],
             nullable: true,
           },
         },
@@ -520,7 +610,7 @@ module.exports = {
           new_data: {
             type: 'object',
             description:
-              'Only the provided fields are updated. Allowed keys: user_name, display_name, education_level, like, dislike, bio, interested_subjects, profile_picture. Premium status and user_state must be managed via dedicated endpoints.',
+              'Only the provided profile fields are updated. Allowed keys include user_name/username, display_name/displayName, education_level/educationLevel, bio, interested_subjects/interestedSubjects and profile_picture/avatarUrl. Premium status, role and status must be managed through dedicated admin or premium endpoints.',
             additionalProperties: true,
           },
         },
@@ -539,7 +629,7 @@ module.exports = {
           restricted: { type: 'boolean' },
           reason: {
             type: 'string',
-            enum: [null, 'LOGIN_REQUIRED', 'PREMIUM_REQUIRED'],
+            enum: ['LOGIN_REQUIRED', 'PREMIUM_REQUIRED'],
             nullable: true,
           },
           count: { type: 'integer' },

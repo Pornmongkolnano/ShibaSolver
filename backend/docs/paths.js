@@ -364,7 +364,7 @@ module.exports = {
                 data: {
                   type: 'object',
                   properties: {
-                    user_id: { type: 'integer' },
+                    user_id: { type: 'string' },
                     user_state: { type: 'string', enum: ['ban', 'normal'] },
                   },
                 },
@@ -395,7 +395,7 @@ module.exports = {
                 data: {
                   type: 'object',
                   properties: {
-                    user_id: { type: 'integer' },
+                    user_id: { type: 'string' },
                     user_state: { type: 'string', enum: ['normal', 'ban'] },
                   },
                 },
@@ -440,7 +440,7 @@ module.exports = {
             {
               type: 'object',
               properties: {
-                data: { $ref: '#/components/schemas/Report' },
+                data: { $ref: '#/components/schemas/AdminReportStatusResult' },
               },
             },
           ],
@@ -475,6 +475,7 @@ module.exports = {
               type: 'object',
               properties: {
                 count: { type: 'integer' },
+                total: { type: 'integer' },
                 data: {
                   type: 'array',
                   items: { $ref: '#/components/schemas/AccountReport' },
@@ -511,6 +512,7 @@ module.exports = {
               type: 'object',
               properties: {
                 count: { type: 'integer' },
+                total: { type: 'integer' },
                 data: {
                   type: 'array',
                   items: { $ref: '#/components/schemas/PostReport' },
@@ -547,6 +549,7 @@ module.exports = {
               type: 'object',
               properties: {
                 count: { type: 'integer' },
+                total: { type: 'integer' },
                 data: {
                   type: 'array',
                   items: { $ref: '#/components/schemas/CommentReport' },
@@ -616,7 +619,7 @@ module.exports = {
                 data: {
                   type: 'object',
                   properties: {
-                    user_id: { type: 'integer' },
+                    user_id: { type: 'string' },
                     is_premium: { type: 'boolean' },
                     updated_at: { type: 'string', format: 'date-time' },
                   },
@@ -644,7 +647,7 @@ module.exports = {
                 data: {
                   type: 'object',
                   properties: {
-                    user_id: { type: 'integer' },
+                    user_id: { type: 'string' },
                     is_premium: { type: 'boolean' },
                     updated_at: { type: 'string', format: 'date-time' },
                   },
@@ -688,12 +691,7 @@ module.exports = {
         200: jsonResponse('ShibaMeter calculated', {
           allOf: [
             baseResponseRef,
-            {
-              type: 'object',
-              properties: {
-                data: { $ref: '#/components/schemas/ShibaMeterResponse' },
-              },
-            },
+            { $ref: '#/components/schemas/ShibaMeterResponse' },
           ],
         }),
         400: jsonResponse('Invalid username', errorResponseRef),
@@ -710,7 +708,7 @@ module.exports = {
           name: 'userID',
           in: 'path',
           required: true,
-          schema: { type: 'integer', minimum: 1 },
+          schema: { type: 'string' },
         },
         {
           name: 'page',
@@ -768,9 +766,13 @@ module.exports = {
               type: 'object',
               properties: {
                 count: { type: 'integer' },
+                data: {
+                  type: 'array',
+                  items: { $ref: '#/components/schemas/Post' },
+                },
                 rows: {
                   type: 'array',
-                  items: { $ref: '#/components/schemas/PostRecord' },
+                  items: { $ref: '#/components/schemas/Post' },
                 },
               },
             },
@@ -797,7 +799,7 @@ module.exports = {
             {
               type: 'object',
               properties: {
-                data: { $ref: '#/components/schemas/PostRecord' },
+                data: { $ref: '#/components/schemas/Post' },
                 tags: {
                   type: 'array',
                   items: { type: 'string' },
@@ -852,7 +854,7 @@ module.exports = {
             {
               type: 'object',
               properties: {
-                data: { $ref: '#/components/schemas/PostRecord' },
+                data: { $ref: '#/components/schemas/Post' },
                 tags: {
                   type: 'array',
                   items: { type: 'string' },
@@ -920,8 +922,8 @@ module.exports = {
                 data: {
                   type: 'object',
                   properties: {
-                    user_id: { type: 'integer' },
-                    post_id: { type: 'integer' },
+                    user_id: { type: 'string' },
+                    post_id: { type: 'string' },
                     created_at: { type: 'string', format: 'date-time' },
                   },
                 },
@@ -1204,13 +1206,13 @@ module.exports = {
                 restricted: { type: 'boolean' },
                 reason: {
                   type: 'string',
-                  enum: [null, 'LOGIN_REQUIRED', 'PREMIUM_REQUIRED'],
+                  enum: ['LOGIN_REQUIRED', 'PREMIUM_REQUIRED'],
                   nullable: true,
                 },
                 post: {
                   type: 'object',
                   properties: {
-                    post_id: { type: 'integer' },
+                    post_id: { type: 'string' },
                     created_at: { type: 'string', format: 'date-time' },
                     is_recent_30d: { type: 'boolean' },
                   },
@@ -1277,11 +1279,11 @@ module.exports = {
                   type: 'object',
                   properties: {
                     target_type: { type: 'string' },
-                    target_id: { type: 'integer' },
+                    target_id: { type: 'string' },
                     rating: {
                       type: 'object',
                       properties: {
-                        rating_id: { type: 'integer' },
+                        rating_id: { type: 'string' },
                         rating_type: { type: 'string' },
                         created_at: { type: 'string', format: 'date-time' },
                       },
@@ -1354,7 +1356,7 @@ module.exports = {
           name: 'ids',
           in: 'query',
           required: true,
-          schema: { type: 'string', example: '1,2,3' },
+          schema: { type: 'string', example: 'post_1,post_2,post_3' },
           description: 'Comma-separated list of ids',
         },
       ],
@@ -1369,6 +1371,48 @@ module.exports = {
                 data: {
                   type: 'array',
                   items: { $ref: '#/components/schemas/RatingSummary' },
+                },
+              },
+            },
+          ],
+        }),
+        400: jsonResponse('Invalid parameters', errorResponseRef),
+        401: jsonResponse('Not authenticated', errorResponseRef),
+      },
+    },
+  },
+  '/api/v1/ratings/check': {
+    get: {
+      tags: ['Ratings'],
+      summary: 'Check current user rating for a post or comment',
+      security: [{ UserBearerAuth: [] }],
+      parameters: [
+        {
+          name: 'target_type',
+          in: 'query',
+          required: true,
+          schema: { type: 'string', enum: ['post', 'comment'] },
+        },
+        {
+          name: 'target_id',
+          in: 'query',
+          required: true,
+          schema: { type: 'string' },
+        },
+      ],
+      responses: {
+        200: jsonResponse('Current user rating', {
+          allOf: [
+            baseResponseRef,
+            {
+              type: 'object',
+              properties: {
+                target_type: { type: 'string', enum: ['post', 'comment'] },
+                target_id: { type: 'string' },
+                my_rating: {
+                  type: 'string',
+                  enum: ['like', 'dislike'],
+                  nullable: true,
                 },
               },
             },
