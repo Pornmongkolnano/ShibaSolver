@@ -4,7 +4,7 @@ import { getApiBaseUrl } from "@/utils/api";
 import Post, { PostData } from "@/components/post/Post";
 import Notification, { NotificationData } from "@/components/notification/Notification";
 import Link from "next/link";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import CreatePostButton from "@/components/post/CreatePostButton";
 import CreatePostModal from "@/components/post/CreatePostModal";
 import { useFetchFeeds } from "@/hooks/useFetchFeeds";
@@ -40,7 +40,7 @@ export default function Home() {
   const [notificationError, setNotificationError] = useState<string | null>(null);
   const { isOpen } = useNotification();
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     setIsLoadingNotifications(true);
     try {
       const res = await fetch(`${BASE}/api/v1/notifications`, {
@@ -79,9 +79,9 @@ export default function Home() {
     } finally {
       setIsLoadingNotifications(false);
     }
-  };
+  }, [BASE]);
 
-  const fetchSavedPosts = async () => {
+  const fetchSavedPosts = useCallback(async () => {
     setIsLoadingSaved(true);
     setSavedError(null);
     try {
@@ -128,12 +128,12 @@ export default function Home() {
     } finally {
       setIsLoadingSaved(false);
     }
-  };
+  }, [BASE]);
 
   useEffect(() => {
     fetchNotifications();
     fetchSavedPosts();
-  }, []);
+  }, [fetchNotifications, fetchSavedPosts]);
 
   const handlePostUpdateInFeed = (updated: PostData) => {
     setPosts((current) =>

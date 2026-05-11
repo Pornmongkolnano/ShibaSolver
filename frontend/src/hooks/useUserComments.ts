@@ -24,7 +24,6 @@ export default function useUserComments(
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
-  const [userData, setUserData] = useState<any>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [totalComments, setTotalComments] = useState(0);
@@ -43,7 +42,7 @@ export default function useUserComments(
         const id = await userService.getUserIdByUsername(username);
         setUserId(id.toString());
         // console.log("Fetched user ID:", id);
-      } catch (err) {
+      } catch {
         setError("Failed to fetch user ID");
         setUserId(null);
       }
@@ -56,17 +55,14 @@ export default function useUserComments(
     try {
       const userResponse = await userService.getUserByUsername(username);
 
-      setUserData(userResponse);
-
       return userResponse;
     } catch (err) {
       setError((err as Error).message || "Failed to fetch user data");
     }
-    fetchUserData();
-  }, [username, BASE_URL]);
+  }, [username]);
 
   const fetchComments = useCallback(
-    async (pageNum: number, reset = false) => {
+    async (pageNum: number) => {
       if (!userId) return;
       setLoading(true);
       setError(null);
@@ -172,7 +168,7 @@ export default function useUserComments(
     if (username) {
       refetch();
     }
-  }, [username, fetchComments]);
+  }, [username, refetch]);
 
   return {
     comments,

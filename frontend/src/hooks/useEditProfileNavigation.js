@@ -32,7 +32,7 @@ export default function useEditProfileNavigation({ setErrors, setIsSubmitting, o
       
       router.push(`/user/${username}`);
       return true;
-    } catch (err) {
+    } catch {
       setErrors((prev) => ({ ...prev, submit: 'Network error. Please try again.' }));
       setIsSubmitting(false);
       return false;

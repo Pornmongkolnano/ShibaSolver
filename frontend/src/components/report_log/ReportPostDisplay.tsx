@@ -228,7 +228,7 @@ export default function ReportPostDisplay({
     return () => {
       cancelled = true;
     };
-  }, [postId, fallbackData]);
+  }, [fallbackData, initialData, postId]);
 
   if (!postId && !postData) {
     return (

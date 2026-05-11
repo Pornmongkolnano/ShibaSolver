@@ -1,7 +1,6 @@
 "use client";
 
 import Avatar from "@mui/material/Avatar";
-import Badge from "@mui/material/Badge";
 import { useState, useEffect } from "react";
 
 type Props = {

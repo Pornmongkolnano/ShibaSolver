@@ -3,7 +3,6 @@ import { useRouter } from "next/navigation";
 import { SolutionTag } from "@/components/comment/SolutionTag";
 import { formatTimeAgo } from "@/components/comment/utils";
 import CommentContentDisplay from "@/components/comment/CommentContent";
-import { CommentContent } from "@/components/comment/types";
 import { LikeButton } from "@/components/comment/LikeButton";
 import { DislikeButton } from "@/components/comment/DislikeButton";
 import { useCommentActions } from "@/components/comment/useCommentActions";
@@ -42,7 +41,7 @@ export default function ProfileComment({
 }: ProfileCommentProps) {
   const router = useRouter();
   // console.log("Rendering ProfileComment for comment ID:", commentData.comment_id);
-  const { rating, isLoading } = useCommentRating(commentData.comment_id);
+  const { rating } = useCommentRating(commentData.comment_id);
   //console.log(`ProfileComment Debug for comment ${commentData.comment_id}:`, { rating, isLoading });
   const handlePostClick = () => {
     if (commentData.post_id) {

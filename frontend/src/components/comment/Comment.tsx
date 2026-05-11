@@ -29,7 +29,7 @@ import { useState } from "react";
 
 const Comment = ({ commentData, allComments = [], onDelete, postId }: CommentProps) => {
   const hasReplies = commentData.Replies > 0;
-  const { user, isLoading, error, refetch } = useCurrentUser();
+  const { user, isLoading } = useCurrentUser();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
@@ -55,14 +55,12 @@ const Comment = ({ commentData, allComments = [], onDelete, postId }: CommentPro
     anchorEl,
     isSolution,
     isEditing,
-    draftContent,
     displayContent,
     isDeleteModalOpen,
     toggleLike,
     toggleDislike,
     handleToggleReplies,
     handleToggleNewReply,
-    handleCancelReply,
     handleCreateNewReply,
     handleMenuOpen,
     handleMenuClose,
@@ -82,11 +80,6 @@ const Comment = ({ commentData, allComments = [], onDelete, postId }: CommentPro
     "none",
     initialContent
   );
-  const [replyContent, setReplyContent] = useState<CommentContent>({
-    text: "",
-    image: null,
-  });
-
   useEffect(() => {
       const savedScrollPosition = sessionStorage.getItem("scrollPosition");
       if (savedScrollPosition) {

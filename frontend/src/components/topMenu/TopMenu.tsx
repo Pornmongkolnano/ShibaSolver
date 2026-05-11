@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import {
@@ -15,7 +15,8 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 export default function TopMenu() {
   const router = useRouter();
   const pathname = usePathname() ?? "";
-  const { isOpen, toggle, open } = useNotification();
+  const previousPathname = useRef(pathname);
+  const { isOpen, toggle, open, close } = useNotification();
 
   const { user, isLoading, refetch } = useCurrentUser();
   const isLoggedIn = Boolean(user);
@@ -28,8 +29,11 @@ export default function TopMenu() {
 
   // FIX: Close notification panel when route changes
   useEffect(() => {
-    if (isOpen) toggle();
-  }, [pathname]);
+    if (previousPathname.current !== pathname) {
+      close();
+      previousPathname.current = pathname;
+    }
+  }, [close, pathname]);
 
   const isActive = (path: string) => {
     if (path === "/") return pathname === "/";

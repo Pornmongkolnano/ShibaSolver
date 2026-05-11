@@ -10,11 +10,7 @@ import { MoreActionsButtonProps } from './types';
 import SvgIcon from '@mui/material/SvgIcon';
 
 export const MoreActionsMenu: React.FC<MoreActionsButtonProps> = ({
-    anchorEl,
-    handleMenuOpen,
-    handleMenuClose,
     handleEdit,
-    handleDelete,
     handleSetSolution,
     handleDeleteModalOpen,
     owner,

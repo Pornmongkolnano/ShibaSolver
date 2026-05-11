@@ -1,5 +1,4 @@
 "use client";
-import { CommentData } from "@/components/comment/types";
 import useUserComments from "@/hooks/useUserComments";
 import Pagination from "./Pagination";
 import ProfileComment from "./ProfileComment";
@@ -28,13 +27,7 @@ export default function CommentsList({
 
   //console.log("CommentsList Debug:", { username, comments, isLoading, error });
 
-  const handleCommentUpdate = (updateComment: CommentData) => {
-    // You could update the local state here if needed
-    // For now, we'll just refetch to ensure consistency
-    refetch();
-  };
-
-  const handleCommentDelete = (commentId: string) => {
+  const handleCommentDelete = () => {
     // Refetch the comments to update the list
     refetch();
   };

@@ -2,7 +2,6 @@
 
 import React, { useState} from 'react';
 import { useReportUser } from '@/hooks/useReportUser'; 
-import { XMarkIcon } from '@heroicons/react/24/outline';
 
 interface ReportUserModalProps {
   userId: string;
@@ -42,10 +41,10 @@ const ReportUserModal = ({ userId, userName, onClose }: ReportUserModalProps) =>
     const reasonToSend = selectedReason === 'Other' ? otherReason.trim() : selectedReason;
 
     try {
-      const response = await reportUser(userId, reasonToSend);
+      await reportUser(userId, reasonToSend);
       onClose(); 
 
-    } catch (err) {
+    } catch {
       onClose();
     }
   };

@@ -97,7 +97,7 @@ export default function useEditProfileForm({ userData }) {
           if (res.status === 404) setUsernameStatus('available');
           else if (res.ok) setUsernameStatus('taken');
           else setUsernameStatus('error');
-        } catch (e) {
+        } catch {
           setUsernameStatus('error');
         }
       };

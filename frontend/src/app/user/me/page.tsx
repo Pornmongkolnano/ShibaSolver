@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 
 export default function MeProfilePage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
+  const [loading] = useState(true);
 
   useEffect(() => {
     const username = localStorage.getItem('username');

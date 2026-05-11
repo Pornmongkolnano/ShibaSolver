@@ -1,6 +1,5 @@
 import { getApiBaseUrl } from "@/utils/api";
 import { useState, useRef } from "react";
-import { useRouter } from "next/navigation";
 import { uploadImageToCloudinary } from "@/utils/uploadImage";
 
 const apiBase = () => getApiBaseUrl()   ;
@@ -18,21 +17,7 @@ type Props = {
   initial?: Initial;
 };
 
-// Example options (match styling of existing components)
-const subjects = [
-  { name: "Math", color: "blue" },
-  { name: "Physics", color: "green" },
-  { name: "Chemistry", color: "purple" },
-  { name: "Biology", color: "red" },
-  { name: "English", color: "orange" },
-  { name: "History", color: "gray" },
-];
-
-const educationLevels = ["High School", "Undergraduate", "Graduate", "Other"];
-
 export function useRegisterForm({ initial = {} }: Props) {
-  const router = useRouter();
-
   const [formData, setFormData] = useState({
     username: initial.username || "",
     displayName: initial.displayName || "",
@@ -179,7 +164,7 @@ export function useRegisterForm({ initial = {} }: Props) {
       const username = json.data?.user_name || payload.user_name;
       if (username) localStorage.setItem("username", username);
       window.location.href = `/user/${username}`;
-    } catch (err) {
+    } catch {
       setErrors((prev) => ({
         ...prev,
         submit: "Network error. Please try again.",

@@ -4,7 +4,6 @@ import { getApiBaseUrl } from "@/utils/api";
 import { useCallback, useEffect, useState } from "react";
 import type { PostData } from "@/components/post/Post"; // type-only import
 import { userService } from "@/utils/userService";
-import { UserData } from "@/utils/userService";
 
 
 type UseUserPostsResult = {
@@ -25,7 +24,6 @@ export default function useUserPosts(
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
-  const [userData, setUserData] = useState<any>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [totalPosts, setTotalPosts] = useState(0);
@@ -44,7 +42,7 @@ export default function useUserPosts(
         const id = await userService.getUserIdByUsername(username);
         setUserId(id.toString());
         console.log("Fetched user ID:", id);
-      } catch (err) {
+      } catch {
         setError("Failed to fetch user ID");
         setUserId(null);
       }
@@ -57,18 +55,15 @@ export default function useUserPosts(
 
     try {
       const userResponse = await userService.getUserByUsername(username);
-      
-      setUserData(userResponse);
 
       return userResponse;
     } catch (err) {
       setError((err as Error).message || "Failed to fetch user data");
     }
-    fetchUserData();
-  }, [username, BASE_URL]);
+  }, [username]);
 
   const fetchPosts = useCallback(
-    async (pageNum: number, reset = false) => {
+    async (pageNum: number) => {
       if (!userId) return;
       setLoading(true);
       setError(null);

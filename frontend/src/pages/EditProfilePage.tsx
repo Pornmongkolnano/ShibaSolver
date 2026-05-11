@@ -4,7 +4,6 @@ import ProfileFrom from "@/components/edit_profile/ProfileForm";
 import React from "react";
 import useCurrentUser from "@/hooks/useCurrentUser";
 import ShibaError from "@/components/error/ShibaError";
-import { exportTraceState } from "next/dist/trace";
 
 type InformationProps = {
   id: string | number;
