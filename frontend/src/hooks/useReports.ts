@@ -29,7 +29,7 @@ export default function useReports() {
         if (data.success) {
           const mappedReports = data.data.map((item) => ({
             id: item.report_id,
-            reportNumber: parseInt(item.report_id),
+            reportNumber: item.report_id,
             reportedBy: item.reporter_name,
             reason: item.reason,
             reportedDate: new Date(item.created_at).toLocaleDateString("en-GB"),
@@ -75,7 +75,7 @@ export default function useReports() {
 
         const mappedReports = combinedReports.map((item) => ({
           id: item.report_id,
-          reportNumber: parseInt(item.report_id),
+          reportNumber: item.report_id,
           reportedBy: item.reporter_name,
           reason: item.reason,
           reportedDate: new Date(item.created_at).toLocaleDateString("en-GB"),
@@ -121,7 +121,7 @@ export default function useReports() {
         if (data.success) {
           const mappedReports = data.data.map((item) => ({
             id: item.report_id,
-            reportNumber: parseInt(item.report_id),
+            reportNumber: item.report_id,
             reportedBy: item.reporter_name,
             reason: item.reason,
             reportedDate: new Date(item.created_at).toLocaleDateString("en-GB"),
@@ -167,7 +167,7 @@ export default function useReports() {
 
         const mappedReports = combinedReports.map((item) => ({
           id: item.report_id,
-          reportNumber: parseInt(item.report_id),
+          reportNumber: item.report_id,
           reportedBy: item.reporter_name,
           reason: item.reason,
           reportedDate: new Date(item.created_at).toLocaleDateString("en-GB"),
@@ -236,7 +236,7 @@ export default function useReports() {
         if (data.success) {
           const mappedReports = data.data.map((item) => ({
             id: item.report_id,
-            reportNumber: parseInt(item.report_id),
+            reportNumber: item.report_id,
             reportedBy: item.reporter_name,
             reason: item.reason,
             reportedDate: new Date(item.created_at).toLocaleDateString("en-GB"),
@@ -299,7 +299,7 @@ export default function useReports() {
 
         const mappedReports = combinedReports.map((item) => ({
           id: item.report_id,
-          reportNumber: parseInt(item.report_id),
+          reportNumber: item.report_id,
           reportedBy: item.reporter_name,
           reason: item.reason,
           reportedDate: new Date(item.created_at).toLocaleDateString("en-GB"),
@@ -392,7 +392,7 @@ export default function useReports() {
         console.log("Banning user with ID:", report.targetUser.id);
         // Ban the user for account reports
         const banResponse = await fetch(
-          `${BACKEND_URL}/api/v1/admins/users/${report.targetUser.id}/ban`,
+          `${BACKEND_URL}/api/v1/admins/users/${encodeURIComponent(report.targetUser.id)}/ban`,
           {
             method: "PATCH",
             credentials: "include",
