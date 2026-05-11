@@ -1,8 +1,7 @@
 "use client";
 
-import Post, { PostData } from "@/components/post/Post";
+import Post from "@/components/post/Post";
 import { useEffect } from "react";
-import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import useUserPosts from "@/hooks/useUserPosts";
 import usePostRatings from "@/hooks/usePostRatings";
 import Pagination from "./Pagination";
@@ -27,17 +26,17 @@ export default function PostsList({
     refetch,
   } = useUserPosts(username);
 
-  const { postRatings, postStats, isLoadingRatings } = usePostRatings(posts);
+  const { postRatings, postStats } = usePostRatings(posts);
 
   // console.log("PostsList Debug:", { username, posts, isLoading, error, postRatings });
 
-  const handlePostUpdate = (updatedPost: PostData) => {
+  const handlePostUpdate = () => {
     // You could update the local state here if needed
     // For now, we'll just refetch to ensure consistency
     refetch();
   };
 
-  const handlePostDelete = (postId: string) => {
+  const handlePostDelete = () => {
     // Refetch the posts to update the list
     refetch();
   };

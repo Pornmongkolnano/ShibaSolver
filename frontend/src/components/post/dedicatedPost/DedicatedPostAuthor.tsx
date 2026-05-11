@@ -74,7 +74,7 @@ const PostAuthor = ({
     }
 
     fetchRating();
-  }, [postId]);
+  }, [API_BASE, postId]);
 
   // ------------------------------
   // Helpers for POST / DELETE
@@ -141,7 +141,7 @@ const PostAuthor = ({
         setLiked(my_rating === 'like');
         setDisliked(my_rating === 'dislike');
       }
-    } catch (err) {
+    } catch {
       setLiked(prev.liked);
       setDisliked(prev.disliked);
       setLikes(prev.likes);
@@ -191,7 +191,7 @@ const PostAuthor = ({
         setLiked(my_rating === 'like');
         setDisliked(my_rating === 'dislike');
       }
-    } catch (err) {
+    } catch {
       setLiked(prev.liked);
       setDisliked(prev.disliked);
       setLikes(prev.likes);

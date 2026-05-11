@@ -100,7 +100,7 @@ export const useFetchFeeds = () => {
     };
 
     fetchFeeds();
-  }, []);
+  }, [API_BASE]);
 
   return { posts, setPosts, isLoading, error };
 };

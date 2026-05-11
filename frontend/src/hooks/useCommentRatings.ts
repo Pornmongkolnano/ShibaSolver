@@ -1,6 +1,5 @@
 import { getApiBaseUrl } from "@/utils/api";
 import { useState, useEffect } from 'react';
-import { CommentData } from '@/components/comment/types';
 import { profileCommentData } from '@/components/profile/profile_content/ProfileComment';
 
 export default function useCommentRatings(comments: profileCommentData[] | null) {

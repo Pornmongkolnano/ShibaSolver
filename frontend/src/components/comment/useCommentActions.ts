@@ -146,7 +146,7 @@ export const useCommentActions = (
         setLiked(my_rating === "like");
         setDisliked(my_rating === "dislike");
       }
-    } catch (err) {
+    } catch {
       // rollback on error
       setLiked(prev.liked);
       setDisliked(prev.disliked);
@@ -197,7 +197,7 @@ export const useCommentActions = (
         setLiked(my_rating === "like");
         setDisliked(my_rating === "dislike");
       }
-    } catch (err) {
+    } catch {
       // rollback on error
       setLiked(prev.liked);
       setDisliked(prev.disliked);

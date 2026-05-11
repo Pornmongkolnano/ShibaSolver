@@ -1,10 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
 import { useCookieConsent } from "@/hooks/useCookieConsent";
 
 export default function CookieConsentModal() {
-  const { hasConsented, acceptAll, showModal } = useCookieConsent();
+  const { acceptAll, showModal } = useCookieConsent();
 
   return (
     <div

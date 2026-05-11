@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react';
 import { useReportComment } from '@/hooks/useReportComment'; 
-import { XMarkIcon } from '@heroicons/react/24/outline';
 
 interface ReportCommentModalProps {
   commentId: string; 
@@ -43,10 +42,10 @@ const ReportCommentModal = ({ commentId, onClose }: ReportCommentModalProps) => 
     const reasonToSend = selectedReason === 'Other' ? otherReason.trim() : selectedReason;
 
     try {
-      const response = await reportComment(commentId, reasonToSend);
+      await reportComment(commentId, reasonToSend);
       onClose(); 
 
-    } catch (err) {
+    } catch {
       onClose();
       // Error จะถูก set โดย Hook และแสดงใน UI
     }

@@ -145,7 +145,7 @@ export default function ReportAccountDisplay({
     return () => {
       cancelled = true;
     };
-  }, [username, fallbackData]);
+  }, [fallbackData, initialData, username]);
 
   if (!username && !accountData) {
     return (

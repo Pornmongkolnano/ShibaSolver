@@ -7,7 +7,7 @@ type Props = {
 }
 
 export default async function UserPage({ params, searchParams }: Props) {
-  const { username } = await params;
+  await params;
   const resolvedSearchParams = await searchParams;
   
   return (

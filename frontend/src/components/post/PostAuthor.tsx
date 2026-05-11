@@ -66,7 +66,7 @@ const PostAuthor = ({
     }
 
     fetchRealRating();
-  }, [postId]);
+  }, [API_BASE, postId]);
   // -------------------------------------------------------
 
 
@@ -140,7 +140,7 @@ const PostAuthor = ({
         setLiked(rating.rating_type === 'like');
         setDisliked(rating.rating_type === 'dislike');
       }
-    } catch (err) {
+    } catch {
       setLiked(prev.liked);
       setDisliked(prev.disliked);
       setLikes(prev.likes);
@@ -185,7 +185,7 @@ const PostAuthor = ({
         setLiked(rating.rating_type === 'like');
         setDisliked(rating.rating_type === 'dislike');
       }
-    } catch (err) {
+    } catch {
       setLiked(prev.liked);
       setDisliked(prev.disliked);
       setLikes(prev.likes);

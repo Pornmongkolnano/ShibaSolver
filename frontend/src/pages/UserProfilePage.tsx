@@ -10,22 +10,6 @@ import useUserProfile from "@/hooks/useUserProfile";
 import ShibaError from "@/components/error/ShibaError";
 import { useParams } from "next/navigation";
 
-type UserProfileProps = {
-  id: string | number;
-  username: string;
-  displayName: string;
-  avatarUrl?: string;
-  bio?: string;
-  educationLevel: string; // e.g. "Undergrad"
-  shibaMeter: number; // e.g. 100
-  topSubjects: string[]; // e.g. ["Calculus", "Programming"]
-  stats: {
-    posts: number;
-    comments: number;
-  };
-  posts: null; // list of recent posts
-};
-
 type Props = {
   searchParams?: { [key: string]: string | string[] | undefined };
 };

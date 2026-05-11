@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import MultiSelectSubject from './MultiSelectSubject';
 import { useCreatePost } from '@/hooks/useCreatePost';
 import { PostData } from './Post';

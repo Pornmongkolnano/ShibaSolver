@@ -1,5 +1,5 @@
 import type { CommentContent } from "./types";
-import React, { useRef, useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import Button from "@mui/material/Button";
 import { ThemeProvider } from "@mui/material/styles";
 import theme from "@/theme/theme";
@@ -20,8 +20,6 @@ export default function CommentEditor({
   onCancel,
 }: CommentEditorProps) {
   const [content, setContent] = useState<CommentContent>(initialContent);
-  const [showImageInput, setShowImageInput] = useState(false);
-  const [imageUrl, setImageUrl] = useState(content.image || "");
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
   const { attachedImagePreview, handleAttachImage, handleRemoveAttachment } =
     useCommentActions("0", 0, 0, false);
@@ -32,11 +30,6 @@ export default function CommentEditor({
 
   useEffect(() => {
     setContent(initialContent);
-    setImageUrl(initialContent.image || "");
-    // If there's an existing image, show it in the preview
-    if (initialContent.image) {
-      setShowImageInput(false);
-    }
   }, [initialContent]);
 
   const handleSubmit = async (e?: React.FormEvent) => {
@@ -103,17 +96,8 @@ export default function CommentEditor({
     }
   };
 
-  const handleAddImage = () => {
-    if (imageUrl.trim()) {
-      setContent((prev) => ({ ...prev, image: imageUrl.trim() }));
-      setShowImageInput(false);
-    }
-  };
-
   const handleRemoveImage = () => {
     setContent((prev) => ({ ...prev, image: null }));
-    setImageUrl("");
-    setShowImageInput(false);
     setLocalAttachedFile(null);
 
     setImageRemoved(true);

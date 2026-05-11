@@ -1,5 +1,5 @@
 import { getApiBaseUrl } from "@/utils/api";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Report } from "@/components/report_log/ReportType";
 import {
   ApiPostReportResponse,
@@ -14,7 +14,7 @@ export default function useReports() {
   const BACKEND_URL =
     getApiBaseUrl()  ;
 
-  const fetchPostReports = async (status: "unreviewed" | "reviewed") => {
+  const fetchPostReports = useCallback(async (status: "unreviewed" | "reviewed") => {
     setLoading(true);
     try {
       if (status === "unreviewed") {
@@ -104,9 +104,9 @@ export default function useReports() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [BACKEND_URL]);
 
-  const fetchCommentReports = async (status: "unreviewed" | "reviewed") => {
+  const fetchCommentReports = useCallback(async (status: "unreviewed" | "reviewed") => {
     setLoading(true);
     try {
       if (status === "unreviewed") {
@@ -196,9 +196,9 @@ export default function useReports() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [BACKEND_URL]);
 
-  const fetchAccountReports = async (status: "unreviewed" | "reviewed") => {
+  const fetchAccountReports = useCallback(async (status: "unreviewed" | "reviewed") => {
     setLoading(true);
     try {
       if (status === "unreviewed") {
@@ -323,9 +323,9 @@ export default function useReports() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [BACKEND_URL]);
 
-  const removeReport = async (reportId: string) => {
+  const removeReport = useCallback(async (reportId: string) => {
     const report = reports.find((r) => r.id === reportId);
     if (!report) return;
 
@@ -461,10 +461,10 @@ export default function useReports() {
       console.error("Network error:", error);
       throw error;
     }
-  };
+  }, [BACKEND_URL, reports]);
 
 
-  const rejectReport = async (reportId: string) => {
+  const rejectReport = useCallback(async (reportId: string) => {
     setReports((prev) => prev.filter((report) => report.id !== reportId));
 
     try {
@@ -514,7 +514,7 @@ export default function useReports() {
     } catch (error) {
       console.error("Network error:", error);
     }
-  };
+  }, [BACKEND_URL]);
 
 
   return {

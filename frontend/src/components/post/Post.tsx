@@ -62,7 +62,7 @@ const Post = ({ postData: initialPostData, userRating, onPostUpdate, onPostDelet
   const [isReportModalOpen, setIsReportModalOpen] = useState(false); // 2. สร้าง State สำหรับ Report Modal
   
   const { user } = useCurrentUser();
-  const { updatePost, isUpdating, error: updateError } = useUpdatePost(); 
+  const { updatePost, isUpdating } = useUpdatePost();
   const { deletePost, isDeleting } = useDeletePost();
 
   useEffect(() => {

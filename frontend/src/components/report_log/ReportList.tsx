@@ -20,7 +20,13 @@ export default function ReportList(
     } else if (reportType === "account") {
       fetchAccountReports(reviewStatus);
     }
-  }, [reviewStatus, reportType]);
+  }, [
+    fetchAccountReports,
+    fetchCommentReports,
+    fetchPostReports,
+    reportType,
+    reviewStatus,
+  ]);
 
   return (
     <div>

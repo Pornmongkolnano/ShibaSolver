@@ -21,7 +21,7 @@ export const useDeleteUser = () => {
       let data = null;
       try {
         data = await response.json();
-      } catch (_) {
+      } catch {
         // ignore JSON parse error; we'll surface a generic message below
       }
 

@@ -1,22 +1,10 @@
 import React from 'react';
-import Link from 'next/link';
-import QuickStat from '@/components/admin_dashboard/QuickStat';
 import AdminButtons from '@/components/admin_dashboard/AdminButtons';
 import AdminLogoutButton from '@/components/admin/AdminLogoutButton';
 import ReportGmailerrorredIcon from '@mui/icons-material/ReportGmailerrorred';
-import PendingActionsIcon from '@mui/icons-material/PendingActions';
 import BlockIcon from '@mui/icons-material/Block';
-import PermIdentityIcon from '@mui/icons-material/PermIdentity';
 
 export default function AdminDashboard() {
-    //incase we want to implement this but not important
-  const adminStats = {
-    totalReports: 23,
-    unreviewedReports: 15,
-    bannedAccounts: 8,
-    totalUsers: 1250,
-  };
-
   const adminActions = [
     {
       title: 'Report Management',

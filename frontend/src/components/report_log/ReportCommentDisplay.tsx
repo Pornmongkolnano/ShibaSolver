@@ -253,7 +253,7 @@ export default function ReportCommentDisplay({
     return () => {
       cancelled = true;
     };
-  }, [commentId, fallbackData]);
+  }, [commentId, fallbackData, initialData]);
 
   useEffect(() => {
     const postId = commentData?.post_id;
