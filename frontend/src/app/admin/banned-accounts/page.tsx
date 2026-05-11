@@ -1,45 +1,17 @@
 'use client';
 import { getApiBaseUrl } from "@/utils/api";
 import BannedUser from '@/components/banned_log/banned_user';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import KeyboardArrowLeftIcon from "@mui/icons-material/KeyboardArrowLeft";
 
 interface BannedUserData {
-  userId: number | string;
+  userId: string;
   name: string;
   nickname: string;
   bannedDate: string;
   profileImage: string;
 }
-
-// Mock data for banned users
-const mockBannedUsers = [
-  {
-    id: 1,
-    name: "Pornmongkol Taniggarn",
-    nickname: "Nano",
-    reasonOfBan: "Offensive Accountsdsdsdsdsdsds",
-    bannedDate: "31/10/25",
-    profileImage: "/images/default-avatar.png"
-  },
-  {
-    id: 2,
-    name: "John Doe",
-    nickname: "JD",
-    reasonOfBan: "Spam Activities",
-    bannedDate: "30/10/25",
-    profileImage: "/images/default-avatar.png"
-  },
-  {
-    id: 3,
-    name: "Alice Smith",
-    nickname: "Ali",
-    reasonOfBan: "Violation of Terms",
-    bannedDate: "29/10/25",
-    profileImage: "/images/default-avatar.png"
-  }
-];
 
 export default function BannedAccountsPage() {
   const BASE = getApiBaseUrl()  ;
@@ -47,8 +19,9 @@ export default function BannedAccountsPage() {
   const [isLoadingBanned, setIsLoadingBanned] = useState(true);
   const [errorBanned, setErrorBanned] = useState<string | null>(null);
 
-  const fetchBannedUsers = async () => {
+  const fetchBannedUsers = useCallback(async () => {
     setIsLoadingBanned(true);
+    setErrorBanned(null);
     try {
       const res = await fetch(`${BASE}/api/v1/admins/users/banned`, {
         method: "GET",
@@ -74,7 +47,7 @@ export default function BannedAccountsPage() {
         nickname: u.display_name,
         bannedDate: u.banned_at,
         profileImage: u.profile_picture,
-        userId: u.user_id,
+        userId: String(u.user_id),
       }));
       
       setBannedUsers(mapped);
@@ -84,11 +57,11 @@ export default function BannedAccountsPage() {
     } finally {
       setIsLoadingBanned(false);
     }
-  }
+  }, [BASE]);
 
   useEffect(() => {
     fetchBannedUsers();
-  }, []);
+  }, [fetchBannedUsers]);
 
   const router = useRouter();
 
@@ -109,16 +82,24 @@ export default function BannedAccountsPage() {
               </button>
             </div>
             <div className="space-y-4">
-              {bannedUsers.map((user) => (
-                <BannedUser
-                  key={user.userId}
-                  name={user.name}
-                  nickname={user.nickname}
-                  bannedDate={user.bannedDate}
-                  profileImage={user.profileImage}
-                  userId={Number(user.userId)}
-                />
-              ))}
+              {isLoadingBanned ? (
+                <div className="rounded-xl bg-white p-6 text-gray-600 shadow-sm">Loading banned accounts...</div>
+              ) : errorBanned ? (
+                <div className="rounded-xl bg-white p-6 text-red-600 shadow-sm">{errorBanned}</div>
+              ) : bannedUsers.length === 0 ? (
+                <div className="rounded-xl bg-white p-6 text-gray-600 shadow-sm">No banned accounts found.</div>
+              ) : (
+                bannedUsers.map((user) => (
+                  <BannedUser
+                    key={user.userId}
+                    name={user.name}
+                    nickname={user.nickname}
+                    bannedDate={user.bannedDate}
+                    profileImage={user.profileImage}
+                    userId={user.userId}
+                  />
+                ))
+              )}
             </div>
           </div>
       </div>

@@ -1,321 +1,301 @@
+const prisma = require("../lib/prisma");
+const { asyncHandler, createError, sendSuccess } = require("../utils/apiResponse");
+const { publicPost, ratingSummary } = require("../utils/apiPresenters");
+const { publicUser } = require("../utils/userPresenter");
+const { getAuthUserId, readStringId } = require("../utils/request");
+
+const USER_POST_INCLUDE = {
+  author: true,
+  tags: { include: { tag: true } },
+  ratings: { select: { userId: true, value: true } },
+  comments: {
+    where: { deletedAt: null },
+    include: {
+      author: true,
+      ratings: { select: { userId: true, value: true } },
+    },
+  },
+};
+
+function getOptionalUserId(req) {
+  return req.currentUser?.id || req.user?.id || req.user?.uid || null;
+}
+
+function parsePageLimit(query, { defaultLimit = 20, maxLimit = 100 } = {}) {
+  let page = Number.parseInt(query.page, 10);
+  if (!Number.isInteger(page) || page <= 0) page = 1;
+
+  let limit = Number.parseInt(query.limit, 10);
+  if (!Number.isInteger(limit) || limit <= 0) limit = defaultLimit;
+  limit = Math.min(limit, maxLimit);
+
+  return {
+    page,
+    limit,
+    offset: (page - 1) * limit,
+  };
+}
+
+function topCommentForPost(post) {
+  if (!post.comments?.length) return null;
+  return [...post.comments].sort((a, b) => {
+    const aVotes = ratingSummary(a.ratings).total_votes;
+    const bVotes = ratingSummary(b.ratings).total_votes;
+    if (bVotes !== aVotes) return bVotes - aVotes;
+    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+  })[0];
+}
+
+function normalizeProfileUpdate(input) {
+  const data = {};
+  const has = (field) => Object.prototype.hasOwnProperty.call(input, field);
+
+  if (has("user_name")) data.username = cleanNullableString(input.user_name);
+  if (has("username")) data.username = cleanNullableString(input.username);
+  if (has("display_name")) data.displayName = cleanNullableString(input.display_name);
+  if (has("displayName")) data.displayName = cleanNullableString(input.displayName);
+  if (has("education_level")) data.educationLevel = cleanNullableString(input.education_level);
+  if (has("educationLevel")) data.educationLevel = cleanNullableString(input.educationLevel);
+  if (has("bio")) data.bio = cleanNullableString(input.bio);
+  if (has("profile_picture")) data.avatarUrl = cleanNullableString(input.profile_picture);
+  if (has("avatarUrl")) data.avatarUrl = cleanNullableString(input.avatarUrl);
+  if (has("interested_subjects")) data.interestedSubjects = normalizeStringList(input.interested_subjects);
+  if (has("interestedSubjects")) data.interestedSubjects = normalizeStringList(input.interestedSubjects);
+
+  return data;
+}
+
+function cleanNullableString(value) {
+  if (value === null || value === undefined) return null;
+  const text = String(value).trim();
+  return text || null;
+}
+
+function normalizeStringList(value) {
+  if (!Array.isArray(value)) return [];
+  return [
+    ...new Set(
+      value
+        .map((item) => String(item ?? "").trim())
+        .filter(Boolean)
+    ),
+  ];
+}
+
+function premiumPayload(user) {
+  if (!user) return null;
+  return {
+    user_id: user.id,
+    is_premium: user.isPremium,
+    updated_at: user.updatedAt,
+  };
+}
+
 /**
  * @desc    Get a single user by username
  * @route   GET /api/v1/users/:username
- * @access  Private 
+ * @access  Public
  */
-exports.getUser = async (req, res, next) => {
-  try {
-    const { username } = req.params;
-    
-    if (!/^[\w-]+$/.test(username)) return res.status(400).json({ success:false, message:'Invalid username' });
+exports.getUser = asyncHandler(async (req, res) => {
+  const username = String(req.params.username || "").trim();
+  if (!/^[\w-]+$/.test(username)) {
+    throw createError(400, "INVALID_USERNAME", "Invalid username");
+  }
 
-    const pool = req.app.locals.pool;
-    const { rows } = await pool.query(
-      `SELECT 
-        user_id,
-        user_name,
-        display_name,
-        profile_picture,
-        bio,
-        education_level,
-        interested_subjects,
-        "like",
-        "dislike",
-        "is_premium",
-        created_at
-      FROM public.users 
-      WHERE user_name = $1`, [username]
-    );
-    if (rows.length === 0) return res.status(404).json({ success:false, message:'User not found' });
+  const user = await prisma.user.findUnique({
+    where: { username },
+  });
 
-    return res.status(200).json({ success:true, data: rows[0] });
-  } catch (err) { next(err); }
-};
+  if (!user || user.deletedAt) {
+    throw createError(404, "USER_NOT_FOUND", "User not found");
+  }
+
+  return sendSuccess(res, {
+    data: {
+      ...publicUser(user),
+      like: null,
+      dislike: null,
+    },
+  });
+});
 
 /**
- * @desc    Delete a user by ID
- * @route   DELETE /api/v1/users/:id
+ * @desc    Delete current user
+ * @route   DELETE /api/v1/users
  * @access  Private
  */
-exports.deleteUser = async (req, res, next) => {
-  try {
-    const id = req.user.uid;
-    if (!/^\d+$/.test(id)) return res.status(400).json({ success:false, message:'Invalid id' });
+exports.deleteUser = asyncHandler(async (req, res) => {
+  const userId = getAuthUserId(req);
+  const deletedAt = new Date();
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      status: "DELETED",
+      deletedAt,
+      sessions: {
+        updateMany: {
+          where: { revokedAt: null },
+          data: { revokedAt: deletedAt },
+        },
+      },
+    },
+  });
 
-    const pool = req.app.locals.pool;
-    const { rows } = await pool.query(
-      `DELETE FROM public.users WHERE user_id = $1
-      RETURNING user_id, user_name, google_account`, [id]
-    );
-    if (rows.length === 0) return res.status(404).json({ success:false, message:'User not found' });
+  return sendSuccess(res, {
+    data: publicUser(user),
+  });
+});
 
-    return res.status(200).json({ success:true, data: rows[0] });
-  } catch (err) { next(err); }
-};
-
-/** 
- * @desc    Update a user by ID
- * @route   PUT /api/v1/users/:id
+/**
+ * @desc    Update current user profile
+ * @route   PUT /api/v1/users
  * @access  Private
  */
-exports.updateUser = async (req, res, next) => {
-  try {
-    const id  = req.user.uid;
-    const { new_data } = req.body;
+exports.updateUser = asyncHandler(async (req, res) => {
+  const userId = getAuthUserId(req);
+  const { new_data: newData } = req.body || {};
 
-      if (!/^\d+$/.test(id)) {
-      return res.status(400).json({ success: false, message: 'Invalid id' });
-      }
-
-    if (!new_data || Object.keys(new_data).length === 0) {
-      return res.status(400).json({ success: false, message: 'No data to update' });
-    }
-
-    const privilegedFields = ["is_premium", "user_state"];
-    const attemptedPrivileged = Object.keys(new_data).filter(f => privilegedFields.includes(f));
-    if (attemptedPrivileged.length > 0) {
-      return res.status(403).json({
-        success: false,
-        message: `Fields ${attemptedPrivileged.join(", ")} can only be changed by administrators`,
-      });
-    }
-
-    const allowedFields = [
-      "user_name",
-      "display_name",
-      "education_level",
-      "like",
-      "dislike",
-      "bio",
-      "interested_subjects",
-      "profile_picture"
-    ];
-
-    const pool = req.app.locals.pool;
-
-    // Filter only valid fields
-    const fields = Object.keys(new_data).filter(f => allowedFields.includes(f));
-    if (fields.length === 0) {
-      return res.status(400).json({ success: false, message: 'No valid fields to update' });
-    }
-
-    const values = fields.map(f => new_data[f]);
-
-    // Build SET clause like "field1=$1, field2=$2"
-    const setClause = fields.map((f, i) => `"${f}" = $${i + 1}`).join(", ");
-
-    const query = `
-      UPDATE public.users
-      SET ${setClause}
-      WHERE user_id = $${fields.length + 1}
-      RETURNING user_id, google_account, is_premium, user_state, user_name, display_name, education_level, "like", "dislike", bio, interested_subjects, profile_picture
-    `;
-
-    const { rows } = await pool.query(query, [...values, id]);
-
-    if (rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Fail to Update' });
-    }
-
-    return res.status(200).json({ success: true, data: rows[0] });
-  } catch (err) {
-    next(err);
+  if (!newData || Object.keys(newData).length === 0) {
+    throw createError(400, "NO_DATA", "No data to update");
   }
-};
 
+  const privilegedFields = ["is_premium", "isPremium", "user_state", "status", "role"];
+  const attemptedPrivileged = Object.keys(newData).filter((field) =>
+    privilegedFields.includes(field)
+  );
+  if (attemptedPrivileged.length > 0) {
+    throw createError(
+      403,
+      "PRIVILEGED_FIELDS",
+      `Fields ${attemptedPrivileged.join(", ")} can only be changed by administrators`
+    );
+  }
+
+  const data = normalizeProfileUpdate(newData);
+  if (Object.keys(data).length === 0) {
+    throw createError(400, "NO_VALID_FIELDS", "No valid fields to update");
+  }
+
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data,
+  });
+
+  return sendSuccess(res, {
+    data: publicUser(user),
+  });
+});
 
 /**
  * @desc    Get all posts created by a specific user
  * @route   GET /api/v1/users/:userID/posts
- * @access  Private
- * @return  {post_id, title, description, post_image, is_solved, created_at, poster info, tags: [], top_comment: {}, rating info}
+ * @access  Public with optional auth
  */
+exports.getPostbyUserId = asyncHandler(async (req, res) => {
+  const userId = readStringId(req.params.userID, "userID");
+  const currentUserId = getOptionalUserId(req);
+  const { page, limit, offset } = parsePageLimit(req.query, {
+    defaultLimit: 100,
+    maxLimit: 100,
+  });
 
-exports.getPostbyUserId = async (req, res, next) => {
-  try {
-    const pool = req.app.locals.pool;
-    const userID = req.params.userID;
-    const currentUserID = req.user?.uid || null;
+  const [total, posts] = await Promise.all([
+    prisma.post.count({
+      where: { authorId: userId, deletedAt: null },
+    }),
+    prisma.post.findMany({
+      where: { authorId: userId, deletedAt: null },
+      include: USER_POST_INCLUDE,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: limit,
+      skip: offset,
+    }),
+  ]);
 
-    //pagination parameter
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 100;
-    const offset = (page - 1) * limit;
+  const data = posts.map((post) =>
+    publicPost(post, {
+      currentUserId,
+      topComment: topCommentForPost(post),
+    })
+  );
+  const totalPages = Math.max(Math.ceil(total / limit), 1);
 
-    //Posts with author info + aggregated ratings + my rating
-    const postSql = `
-      SELECT 
-        p.post_id,
-        p.title,
-        p.description,
-        p.post_image,
-        p.is_solved,
-        p.created_at,
-        u.user_id,
-        u.display_name,
-        u.profile_picture,
-        COALESCE(SUM(CASE WHEN r.rating_type = 'like' THEN 1 ELSE 0 END), 0) AS likes,
-        COALESCE(SUM(CASE WHEN r.rating_type = 'dislike' THEN 1 ELSE 0 END), 0) AS dislikes,
-        BOOL_OR(r_me.rating_type = 'like') AS liked_by_user,
-        BOOL_OR(r_me.rating_type = 'dislike') AS disliked_by_user
-      FROM posts p
-      JOIN users u ON u.user_id = p.user_id
-      LEFT JOIN ratings r ON r.post_id = p.post_id
-      LEFT JOIN ratings r_me ON r_me.post_id = p.post_id AND r_me.user_id = $1
-      WHERE p.user_id = $2 AND p.is_deleted = FALSE
-      GROUP BY p.post_id, u.user_id, u.display_name, u.profile_picture
-      ORDER BY p.created_at DESC
-      LIMIT $3 OFFSET $4;
-      `;
+  return sendSuccess(res, {
+    count: data.length,
+    meta: {
+      page,
+      limit,
+      total,
+      totalPages,
+      hasNext: page < totalPages,
+      nextPage: page < totalPages ? page + 1 : null,
+    },
+    data,
+  });
+});
 
-    const tagSql = `
-      SELECT 
-        pt.post_id,
-        ARRAY_AGG(t.tag_name ORDER BY t.tag_name) AS tags
-      FROM post_tags pt
-      JOIN tags t ON t.tag_id = pt.tag_id
-      WHERE pt.post_id = ANY($1::int[])
-      GROUP BY pt.post_id;
-    `;
+/**
+ * @desc    Update user's premium status
+ * @route   PUT /api/v1/users/premium
+ * @access  Private
+ */
+exports.updatePremium = asyncHandler(async (req, res) => {
+  const userId = getAuthUserId(req);
+  const existing = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { isPremium: true },
+  });
 
-    const topCommentSql = `
-      WITH comment_ratings AS (
-        SELECT 
-          c.comment_id,
-          c.post_id,
-          c.text,
-          c.created_at,
-          c.user_id,
-          u.display_name,
-          u.profile_picture,
-          COALESCE(SUM(CASE WHEN r.rating_type='like' THEN 1 ELSE 0 END), 0) AS likes,
-          COALESCE(SUM(CASE WHEN r.rating_type='dislike' THEN 1 ELSE 0 END), 0) AS dislikes
-        FROM comments c
-        JOIN users u ON u.user_id = c.user_id
-        LEFT JOIN ratings r ON r.comment_id = c.comment_id
-        WHERE c.post_id = ANY($1::int[]) AND c.is_deleted = FALSE
-        GROUP BY c.comment_id, c.post_id, u.display_name, u.profile_picture, c.user_id
-      )
-      SELECT DISTINCT ON (post_id)
-        *,
-        (likes + dislikes) AS total_ratings
-      FROM comment_ratings
-      ORDER BY post_id, total_ratings DESC, created_at ASC;
-    `;
+  if (!existing) {
+    throw createError(404, "USER_NOT_FOUND", "User not found");
+  }
 
-    const postsRes = await pool.query(postSql, [currentUserID, userID, limit, offset]);
-    const postIds = postsRes.rows.map(p => p.post_id);
-
-    let tagsRes = { rows: [] };
-    let topCommentsRes = { rows: [] };
-    if (postIds.length > 0) {
-      [tagsRes, topCommentsRes] = await Promise.all([
-        pool.query(tagSql, [postIds]),
-        pool.query(topCommentSql, [postIds])
-      ]);
-    }
-
-    //Convert tags + comments into lookup maps for merging
-    const tagsByPost = Object.fromEntries(
-      tagsRes.rows.map(t => [t.post_id, t.tags])
-    );
-
-    const topComments = Object.fromEntries(
-      topCommentsRes.rows.map(c => [c.post_id, c])
-    );
-
-    //Merge all data into final response
-    const feed = postsRes.rows.map(p => ({
-      ...p,
-      tags: tagsByPost[p.post_id] || [],
-      top_comment: topComments[p.post_id] || null,
-    }));
-
-    const totalRes = await pool.query(
-      `SELECT COUNT(*) AS total FROM posts WHERE user_id = $1 AND is_deleted = FALSE;`,
-      [userID]
-    );
-
-    const total = parseInt(totalRes.rows[0].total, 10);
-    const totalPages = Math.max(Math.ceil(total / limit), 1);
-    
-    console.log('Feed data:', feed);
-    return res.status(200).json({
-      success: true,
-      count: feed.length,
-      meta: {
-        page, limit, total, totalPages,
-        hasNext: page < totalPages,
-        nextPage: page < totalPages ? page + 1 : null
-      },
-      data: feed.map(({ total, ...r }) => r)
+  if (existing.isPremium) {
+    return sendSuccess(res, {
+      message: "User is already premium",
+      data: null,
     });
-
-  } catch (err) {
-    console.error('Error in getPostbyId:', err);
-    return res.status(500).json({ success: false, message: "Server error" });
   }
-};
+
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: { isPremium: true },
+  });
+
+  return sendSuccess(res, {
+    data: premiumPayload(user),
+  });
+});
 
 /**
- * @desc    update user's premium status
- * @route   PUT /api/v1/users/premium
+ * @desc    Cancel user's premium status
+ * @route   PUT /api/v1/users/canclePremium
  * @access  Private
  */
-exports.updatePremium = async (req, res, next) => {
-  try {
-    const pool = req.app.locals.pool;
-    const id = req.user?.uid;
-    if (!id) return res.status(401).json({ success: false, message: 'Unauthorized' });
+exports.canclePremium = asyncHandler(async (req, res) => {
+  const userId = getAuthUserId(req);
+  const existing = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { isPremium: true },
+  });
 
-    const sql = `
-      UPDATE users
-      SET is_premium = TRUE,
-          updated_at = now()
-      WHERE user_id = $1 AND is_premium = FALSE
-      RETURNING user_id, is_premium, updated_at
-    `;
-    const { rows } = await pool.query(sql, [id]);
-
-    if (rows.length === 0) {
-      return res.status(200).json({ success: true, message: 'User is already premium', data: null });
-    }
-
-    return res.status(200).json({ success: true, data: rows[0] });
-  } catch (err) {
-    next(err);
+  if (!existing) {
+    throw createError(404, "USER_NOT_FOUND", "User not found");
   }
-};
 
-
-
-/**
- * @desc    update user's premium status
- * @route   PUT /api/v1/users/premium
- * @access  Private
- */
-exports.canclePremium = async (req, res, next) => {
-  try {
-    const pool = req.app.locals.pool;
-    const id = req.user?.uid;
-    if (!id) return res.status(401).json({ success: false, message: 'Unauthorized' });
-
-    const sql = `
-      UPDATE users
-      SET is_premium = FALSE,
-          updated_at = now()
-      WHERE user_id = $1 AND is_premium = TRUE
-      RETURNING user_id, is_premium, updated_at
-    `;
-    const { rows } = await pool.query(sql, [id]);
-
-    if (rows.length === 0) {
-      return res.status(200).json({ success: true, message: 'User is not premium', data: null });
-    }
-
-    return res.status(200).json({ success: true, data: rows[0] });
-  } catch (err) {
-    next(err);
+  if (!existing.isPremium) {
+    return sendSuccess(res, {
+      message: "User is not premium",
+      data: null,
+    });
   }
-};
 
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: { isPremium: false },
+  });
+
+  return sendSuccess(res, {
+    data: premiumPayload(user),
+  });
+});

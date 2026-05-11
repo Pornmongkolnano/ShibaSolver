@@ -1,630 +1,563 @@
-const { createNotification } = require('../services/notificationService');
+const prisma = require("../lib/prisma");
+const { createNotification } = require("../services/notificationService");
+const { asyncHandler, createError, sendSuccess } = require("../utils/apiResponse");
+const { parseLimitOffset, readStringId } = require("../utils/request");
+const { publicAdmin } = require("../utils/userPresenter");
+
+const STATUS_FILTERS = {
+  pending: "PENDING",
+  accepted: "ACCEPTED",
+  rejected: "REJECTED",
+};
+
+function requireAdminId(req) {
+  const adminId = req.admin?.id || req.admin?.admin_id;
+  if (!adminId) {
+    throw createError(401, "UNAUTHORIZED", "Admin authentication required");
+  }
+  return adminId;
+}
+
+function normalizeStatus(value, { required = false } = {}) {
+  const status = String(value ?? "").trim().toLowerCase();
+  if (!status) {
+    if (required) {
+      throw createError(400, "INVALID_STATUS", "status is required");
+    }
+    return null;
+  }
+
+  const normalized = STATUS_FILTERS[status];
+  if (!normalized) {
+    throw createError(
+      400,
+      "INVALID_STATUS",
+      "status must be one of: pending, accepted, rejected"
+    );
+  }
+  return normalized;
+}
+
+function legacyStatus(status) {
+  return String(status || "").toLowerCase();
+}
+
+function displayName(user) {
+  return user?.displayName || user?.username || user?.email || null;
+}
+
+function reportTargetId(report) {
+  if (!report) return null;
+  return report.targetUserId || report.targetPostId || report.targetCommentId || null;
+}
+
+function targetTypeToLegacy(targetType) {
+  return String(targetType || "").toLowerCase();
+}
+
+function serializeBannedUser(user) {
+  return {
+    user_id: user.id,
+    user_name: user.username,
+    display_name: user.displayName,
+    profile_picture: user.avatarUrl,
+    email: user.email,
+    user_state: "ban",
+    banned_at: user.updatedAt,
+  };
+}
+
+function serializeAccountReport(report) {
+  return {
+    report_id: report.id,
+    reporter_id: report.reporterId,
+    target_id: report.targetUserId,
+    reason: report.reason,
+    status: legacyStatus(report.status),
+    created_at: report.createdAt,
+    reporter_name: displayName(report.reporter),
+    target_name: displayName(report.targetUser),
+    target_username: report.targetUser?.username || null,
+  };
+}
+
+function serializePostReport(report) {
+  return {
+    report_id: report.id,
+    reporter_id: report.reporterId,
+    target_id: report.targetPostId,
+    reason: report.reason,
+    status: legacyStatus(report.status),
+    created_at: report.createdAt,
+    reporter_name: displayName(report.reporter),
+    post_title: report.targetPost?.title || null,
+    post_owner_name: displayName(report.targetPost?.author),
+    post_owner_username: report.targetPost?.author?.username || null,
+  };
+}
+
+function serializeCommentReport(report) {
+  return {
+    report_id: report.id,
+    reporter_id: report.reporterId,
+    target_id: report.targetCommentId,
+    reason: report.reason,
+    status: legacyStatus(report.status),
+    created_at: report.createdAt,
+    reporter_name: displayName(report.reporter),
+    comment_text: report.targetComment?.body || null,
+    comment_owner_name: displayName(report.targetComment?.author),
+    comment_owner_username: report.targetComment?.author?.username || null,
+  };
+}
+
+async function listReports(targetType, status, include, serializer) {
+  const where = {
+    targetType,
+    ...(status ? { status } : {}),
+  };
+
+  const reports = await prisma.report.findMany({
+    where,
+    include,
+    orderBy: { createdAt: "desc" },
+  });
+
+  return {
+    rows: reports.map(serializer),
+    total: reports.length,
+  };
+}
 
 /**
  * @desc    Get all admins (optional search & pagination)
  * @route   GET /api/v1/admins
  * @access  Private/Admin
  */
-exports.getAllAdmins = async (req, res, next) => {
-  try {
-    const pool = req.app.locals.pool;
-    const MAX_LIMIT = 100;
-    const adminId = req.admin?.admin_id;
-    if (!adminId) {
-      return res.status(401).json({ success: false, message: "Not authenticated" });
-    }
+exports.getAllAdmins = asyncHandler(async (req, res) => {
+  requireAdminId(req);
+  const { limit, offset } = parseLimitOffset(req.query, { defaultLimit: 20, maxLimit: 100 });
+  const search = String(req.query.search ?? "").trim();
 
-    const search = (req.query.search || '').trim();
+  const where = {
+    role: "ADMIN",
+    ...(search
+      ? {
+          OR: [
+            { email: { contains: search, mode: "insensitive" } },
+            { username: { contains: search, mode: "insensitive" } },
+            { displayName: { contains: search, mode: "insensitive" } },
+          ],
+        }
+      : {}),
+  };
 
-    let limit = Number.parseInt(req.query.limit, 10);
-    if (!Number.isInteger(limit) || limit <= 0) limit = 20;
-    limit = Math.min(limit, MAX_LIMIT);
+  const [total, admins] = await prisma.$transaction([
+    prisma.user.count({ where }),
+    prisma.user.findMany({
+      where,
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      skip: offset,
+      take: limit,
+    }),
+  ]);
 
-    let offset = Number.parseInt(req.query.offset, 10);
-    if (!Number.isInteger(offset) || offset < 0) offset = 0;
-
-    const whereParts = [];
-    const params = [];
-
-    if (search) {
-      const searchTerm = `%${search.toLowerCase()}%`;
-      const nameIdx = params.length + 1;
-      params.push(searchTerm);
-      const emailIdx = params.length + 1;
-      params.push(searchTerm);
-      whereParts.push(`(LOWER(name) LIKE $${nameIdx} OR LOWER(email) LIKE $${emailIdx})`);
-    }
-
-    const whereClause = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : '';
-
-    const countSql = `SELECT COUNT(*)::int AS total FROM admins ${whereClause};`;
-    const { rows: countRows } = await pool.query(countSql, params);
-    const total = countRows[0]?.total ?? 0;
-
-    const limitIdx = params.length + 1;
-    const offsetIdx = params.length + 2;
-
-    const dataSql = `
-      SELECT admin_id, name, email
-      FROM admins
-      ${whereClause}
-      ORDER BY admin_id ASC
-      LIMIT $${limitIdx}
-      OFFSET $${offsetIdx};
-    `;
-    const dataParams = [...params, limit, offset];
-    const { rows } = await pool.query(dataSql, dataParams);
-
-    return res.status(200).json({
-      success: true,
-      count: rows.length,
-      total,
-      pagination: { limit, offset },
-      data: rows,
-    });
-  } catch (err) {
-    next(err);
-  }
-};
+  return sendSuccess(res, {
+    count: admins.length,
+    total,
+    pagination: { limit, offset },
+    data: admins.map(publicAdmin),
+  });
+});
 
 /**
  * @desc    Get banned users with optional search & pagination
  * @route   GET /api/v1/admins/users/banned
  * @access  Private/Admin
  */
-exports.getBannedUsers = async (req, res, next) => {
-  try {
-    const pool = req.app.locals.pool;
-    const adminId = req.admin?.admin_id;
-    if (!adminId) {
-      return res.status(401).json({ success: false, message: "Not authenticated" });
-    }
+exports.getBannedUsers = asyncHandler(async (req, res) => {
+  requireAdminId(req);
+  const { limit, offset } = parseLimitOffset(req.query, { defaultLimit: 20, maxLimit: 100 });
+  const search = String(req.query.search ?? "").trim();
 
-    const MAX_LIMIT = 100;
-    const searchRaw = (req.query.search || '').trim();
+  const where = {
+    status: "BANNED",
+    deletedAt: null,
+    ...(search
+      ? {
+          OR: [
+            { email: { contains: search, mode: "insensitive" } },
+            { username: { contains: search, mode: "insensitive" } },
+            { displayName: { contains: search, mode: "insensitive" } },
+          ],
+        }
+      : {}),
+  };
 
-    let limit = Number.parseInt(req.query.limit, 10);
-    if (!Number.isInteger(limit) || limit <= 0) limit = 20;
-    limit = Math.min(limit, MAX_LIMIT);
+  const [total, users] = await prisma.$transaction([
+    prisma.user.count({ where }),
+    prisma.user.findMany({
+      where,
+      orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+      skip: offset,
+      take: limit,
+    }),
+  ]);
 
-    let offset = Number.parseInt(req.query.offset, 10);
-    if (!Number.isInteger(offset) || offset < 0) offset = 0;
-
-    const whereParts = [`user_state = 'ban'::user_state`];
-    const params = [];
-
-    if (searchRaw) {
-      const searchTerm = `%${searchRaw.toLowerCase()}%`;
-      const usernameIdx = params.length + 1;
-      params.push(searchTerm);
-      const displayIdx = params.length + 1;
-      params.push(searchTerm);
-      const emailIdx = params.length + 1;
-      params.push(searchTerm);
-      whereParts.push(
-        `(LOWER(user_name) LIKE $${usernameIdx} OR LOWER(display_name) LIKE $${displayIdx} OR LOWER(email) LIKE $${emailIdx})`
-      );
-    }
-
-    const whereClause = `WHERE ${whereParts.join(' AND ')}`;
-    const countSql = `SELECT COUNT(*)::int AS total FROM users ${whereClause};`;
-    const { rows: countRows } = await pool.query(countSql, params);
-    const total = countRows[0]?.total ?? 0;
-
-    const limitIdx = params.length + 1;
-    const offsetIdx = params.length + 2;
-
-    const dataSql = `
-      SELECT 
-        user_id,
-        user_name,
-        display_name,
-        profile_picture,
-        email,
-        user_state,
-        updated_at AS banned_at
-      FROM users
-      ${whereClause}
-      ORDER BY updated_at DESC, user_id ASC
-      LIMIT $${limitIdx}
-      OFFSET $${offsetIdx};
-    `;
-    const dataParams = [...params, limit, offset];
-    const { rows } = await pool.query(dataSql, dataParams);
-
-    return res.status(200).json({
-      success: true,
-      count: rows.length,
-      total,
-      pagination: { limit, offset },
-      data: rows,
-    });
-  } catch (err) {
-    next(err);
-  }
-};
+  return sendSuccess(res, {
+    count: users.length,
+    total,
+    pagination: { limit, offset },
+    data: users.map(serializeBannedUser),
+  });
+});
 
 /**
  * @desc    Admin delete a post (soft delete) and cascade delete comments
  * @route   DELETE /api/v1/admins/posts/:postId
  * @access  Private/Admin
  */
-exports.adminDeletePost = async (req, res, next) => {
-  const pool = req.app.locals.pool;
-  const client = await pool.connect();
+exports.adminDeletePost = asyncHandler(async (req, res) => {
+  const adminId = requireAdminId(req);
+  const postId = readStringId(req.params.postId, "postId");
+  const deletedAt = new Date();
 
-  try {
-    const adminId = req.admin?.admin_id;            // มาจาก adminProtect
-    const postId = Number(req.params.postId);
-    if (!adminId) {
-      return res.status(401).json({ success: false, message: "Not authenticated" });
-    }
-    if (!Number.isInteger(postId) || postId <= 0) {
-      return res.status(400).json({ success: false, message: "Invalid postId" });
-    }
+  const post = await prisma.$transaction(async (tx) => {
+    const existingPost = await tx.post.findFirst({
+      where: { id: postId, deletedAt: null },
+      select: { id: true, authorId: true },
+    });
 
-    await client.query("BEGIN");
-    
-   // 1) soft delete post (เฉพาะยังไม่ถูกลบ)
-    const upPost = await client.query(
-      `
-      UPDATE posts
-      SET is_deleted = TRUE
-      WHERE post_id = $1 AND is_deleted = FALSE
-      RETURNING post_id, user_id
-      `,
-      [postId]
-    );
-    if (upPost.rowCount === 0) {
-      await client.query("ROLLBACK");
-      return res.status(404).json({ success: false, message: "Post not found or already deleted" });
-    }
-    const postOwnerId = upPost.rows[0].user_id;
-
-    // 2) cascade soft delete comments ใต้โพสต์นี้
-    await client.query(
-      `
-      UPDATE comments
-      SET is_deleted = TRUE
-      WHERE post_id = $1 AND is_deleted = FALSE
-      `,
-      [postId]
-    );
-
-    // 3) บันทึก admin action (มินิมอล ไม่ใส่รายละเอียด)
-    // หมายเหตุ: ถ้าคุณใช้ ENUM ให้ cast ตามสคีมาของคุณ เช่น:
-    // 'delete_post'::admin_action_type และถ้ามี target_type เป็น ENUM ให้ใช้ 'post'::report_target_type
-    await client.query(
-      `
-      INSERT INTO admin_actions (admin_id, action_type, target_type, target_id)
-      VALUES ($1, 'delete_post'::admin_action_type, 'post'::report_target_type, $2)
-      `,
-      [adminId, postId]
-    );
-
-    await client.query("COMMIT");
-
-    // 4) แจ้งเตือนเจ้าของโพสต์ (ทำหลัง COMMIT) ด้วย notification_type = 'admin_delete'
-     if (postOwnerId) {
-      await createNotification(pool, {
-        toUserId: postOwnerId,
-        type: 'admin_delete',
-        message: 'Your post has been removed by an administrator.',
-        link: `/post/${postId}`,
-      });
+    if (!existingPost) {
+      throw createError(404, "POST_NOT_FOUND", "Post not found or already deleted");
     }
 
-    return res
-      .status(200)
-      .json({ success: true, message: "Post deleted with comments cascaded", data: upPost.rows[0] });
-  } catch (e) {
-    try { await client.query("ROLLBACK"); } catch (_) {}
-    next(e);
-  } finally {
-    client.release();
+    await tx.post.update({
+      where: { id: postId },
+      data: { deletedAt },
+    });
+
+    await tx.comment.updateMany({
+      where: { postId, deletedAt: null },
+      data: { deletedAt },
+    });
+
+    await tx.adminAction.create({
+      data: {
+        adminId,
+        actionType: "DELETE_POST",
+        targetType: "POST",
+        targetId: postId,
+      },
+    });
+
+    return existingPost;
+  });
+
+  if (post.authorId) {
+    await createNotification(null, {
+      toUserId: post.authorId,
+      type: "admin_delete",
+      message: "Your post has been removed by an administrator.",
+      link: `/post/${postId}`,
+    });
   }
-};
+
+  return sendSuccess(res, {
+    message: "Post deleted with comments cascaded",
+    data: { post_id: post.id, user_id: post.authorId },
+  });
+});
 
 /**
  * @desc    Admin: delete (soft delete) a comment
  * @route   DELETE /api/v1/admins/comments/:commentId
  * @access  Admin
  */
-exports.adminDeleteComment = async (req, res, next) => {
-  const pool = req.app.locals.pool;
-  const client = await pool.connect();
+exports.adminDeleteComment = asyncHandler(async (req, res) => {
+  const adminId = requireAdminId(req);
+  const commentId = readStringId(req.params.commentId, "commentId");
+  const deletedAt = new Date();
 
-  try {
-    const adminId = req.admin?.admin_id; // from adminProtect middleware
-    const commentId = Number(req.params.commentId);
-
-    if (!adminId) {
-      return res.status(401).json({ success: false, message: "Not authenticated" });
-    }
-    if (!Number.isInteger(commentId) || commentId <= 0) {
-      return res.status(400).json({ success: false, message: "Invalid commentId" });
-    }
-
-    await client.query("BEGIN");
-
-    // 1) soft delete comment
-    const upComment = await client.query(
-      `
-      UPDATE comments
-      SET is_deleted = TRUE
-      WHERE comment_id = $1 AND is_deleted = FALSE
-      RETURNING comment_id, user_id, post_id
-      `,
-      [commentId]
-    );
-
-    if (upComment.rowCount === 0) {
-      await client.query("ROLLBACK");
-      return res
-        .status(404)
-        .json({ success: false, message: "Comment not found or already deleted" });
-    }
-
-    // 2) log admin action
-    await client.query(
-      `
-      INSERT INTO admin_actions (admin_id, action_type, target_type, target_id)
-      VALUES ($1, 'delete_comment'::admin_action_type, 'comment'::report_target_type, $2)
-      `,
-      [adminId, commentId]
-    );
-
-    await client.query("COMMIT");
-
-    const commentOwnerId = upComment.rows[0].user_id;
-    if (commentOwnerId) {
-      const linkTarget = upComment.rows[0].post_id ? `/post/${upComment.rows[0].post_id}` : null;
-      await createNotification(pool, {
-        toUserId: commentOwnerId,
-        type: 'admin_delete',
-        message: 'Your comment has been removed by an administrator.',
-        link: linkTarget,
-      });
-    }
-    
-    return res.status(200).json({
-      success: true,
-      message: "Comment deleted successfully",
-      data: upComment.rows[0],
+  const comment = await prisma.$transaction(async (tx) => {
+    const existingComment = await tx.comment.findFirst({
+      where: { id: commentId, deletedAt: null },
+      select: { id: true, authorId: true, postId: true },
     });
-  } catch (err) {
-    try { await client.query("ROLLBACK"); } catch (_) {}
-    next(err);
-  } finally {
-    client.release();
+
+    if (!existingComment) {
+      throw createError(404, "COMMENT_NOT_FOUND", "Comment not found or already deleted");
+    }
+
+    await tx.comment.update({
+      where: { id: commentId },
+      data: { deletedAt },
+    });
+
+    await tx.adminAction.create({
+      data: {
+        adminId,
+        actionType: "DELETE_COMMENT",
+        targetType: "COMMENT",
+        targetId: commentId,
+      },
+    });
+
+    return existingComment;
+  });
+
+  if (comment.authorId) {
+    await createNotification(null, {
+      toUserId: comment.authorId,
+      type: "admin_delete",
+      message: "Your comment has been removed by an administrator.",
+      link: comment.postId ? `/post/${comment.postId}` : null,
+    });
   }
-};
+
+  return sendSuccess(res, {
+    message: "Comment deleted successfully",
+    data: { comment_id: comment.id, user_id: comment.authorId, post_id: comment.postId },
+  });
+});
 
 /**
  * @desc    Ban a user by admin
  * @route   POST /api/v1/admins/banUser/:userId
  * @access  Private/Admin
  */
-exports.adminBanUser = async (req, res, next) => {
-  const pool = req.app.locals.pool;
-  const client = await pool.connect();
+exports.adminBanUser = asyncHandler(async (req, res) => {
+  const adminId = requireAdminId(req);
+  const userId = readStringId(req.params.userId, "userId");
 
-  try {
-    const adminId = req.admin?.admin_id;           // จาก adminProtect
-    const userId = Number(req.params.userId);
+  const result = await prisma.$transaction(async (tx) => {
+    const user = await tx.user.findUnique({
+      where: { id: userId },
+      select: { id: true, status: true },
+    });
 
-    if (!adminId) {
-      return res.status(401).json({ success: false, message: "Not authenticated" });
-    }
-    if (!Number.isInteger(userId) || userId <= 0) {
-      return res.status(400).json({ success: false, message: "Invalid userId" });
-    }
-
-    await client.query("BEGIN");
-
-    // ล็อกแถวผู้ใช้
-    const qUser = await client.query(
-      `SELECT user_id, user_state
-         FROM users
-        WHERE user_id = $1
-        FOR UPDATE`,
-      [userId]
-    );
-    if (qUser.rowCount === 0) {
-      await client.query("ROLLBACK");
-      return res.status(404).json({ success: false, message: "User not found" });
+    if (!user || user.status === "DELETED") {
+      throw createError(404, "USER_NOT_FOUND", "User not found");
     }
 
-    const alreadyBanned = qUser.rows[0].user_state === 'ban';
-
-    // อัปเดตเฉพาะเมื่อยังไม่ถูกแบน
-    if (!alreadyBanned) {
-      await client.query(
-        `UPDATE users
-            SET user_state = 'ban'::user_state,
-                updated_at = now()
-          WHERE user_id = $1`,
-        [userId]
-      );
-    }
-
-    // บันทึกแอ็กชันของแอดมิน (ENUM casts ให้ตรงสคีมา)
-    await client.query(
-      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id)
-       VALUES ($1, 'ban_user'::admin_action_type, 'user'::report_target_type, $2)`,
-      [adminId, userId]
-    );
-
-    await client.query("COMMIT");
+    const alreadyBanned = user.status === "BANNED";
 
     if (!alreadyBanned) {
-      await createNotification(pool, {
-        toUserId: userId,
-        type: 'ban',
-        message: 'Your account has been banned by an administrator.',
-        link: null,
+      await tx.user.update({
+        where: { id: userId },
+        data: { status: "BANNED" },
       });
     }
 
-    return res.status(200).json({
-      success: true,
-      data: { user_id: userId, user_state: 'ban' },
-      alreadyBanned
+    await tx.adminAction.create({
+      data: {
+        adminId,
+        actionType: "BAN_USER",
+        targetType: "USER",
+        targetId: userId,
+      },
     });
-  } catch (e) {
-    try { await client.query("ROLLBACK"); } catch (_) {}
-    next(e);
-  } finally {
-    client.release();
+
+    return { alreadyBanned };
+  });
+
+  if (!result.alreadyBanned) {
+    await createNotification(null, {
+      toUserId: userId,
+      type: "ban",
+      message: "Your account has been banned by an administrator.",
+      link: null,
+    });
   }
-};
+
+  return sendSuccess(res, {
+    data: { user_id: userId, user_state: "ban" },
+    alreadyBanned: result.alreadyBanned,
+  });
+});
 
 /**
  * @desc    Unban a user by admin
  * @route   PATCH /api/v1/admins/unbanUser/:userId
  * @access  Private/Admin
  */
-exports.adminUnbanUser = async (req, res, next) => {
-  const pool = req.app.locals.pool;
-  const client = await pool.connect();
+exports.adminUnbanUser = asyncHandler(async (req, res) => {
+  const adminId = requireAdminId(req);
+  const userId = readStringId(req.params.userId, "userId");
 
-  try {
-    const adminId = req.admin?.admin_id;          // จาก adminProtect
-    const userId = Number(req.params.userId);
+  const result = await prisma.$transaction(async (tx) => {
+    const user = await tx.user.findUnique({
+      where: { id: userId },
+      select: { id: true, status: true },
+    });
 
-    if (!adminId) {
-      return res.status(401).json({ success: false, message: "Not authenticated" });
-    }
-    if (!Number.isInteger(userId) || userId <= 0) {
-      return res.status(400).json({ success: false, message: "Invalid userId" });
-    }
-
-    await client.query("BEGIN");
-
-    // ล็อกแถวผู้ใช้กัน race
-    const qUser = await client.query(
-      `SELECT user_id, user_state
-         FROM users
-        WHERE user_id = $1
-        FOR UPDATE`,
-      [userId]
-    );
-    if (qUser.rowCount === 0) {
-      await client.query("ROLLBACK");
-      return res.status(404).json({ success: false, message: "User not found" });
+    if (!user || user.status === "DELETED") {
+      throw createError(404, "USER_NOT_FOUND", "User not found");
     }
 
-    const alreadyNormal = qUser.rows[0].user_state === 'normal';
-
-    // อัปเดตเฉพาะเมื่อยังไม่เป็น normal
-    if (!alreadyNormal) {
-      await client.query(
-        `UPDATE users
-            SET user_state = 'normal'::user_state,
-                updated_at = now()
-          WHERE user_id = $1`,
-        [userId]
-      );
-    }
-
-    // บันทึกแอ็กชันของแอดมิน (ENUM casts ให้ตรงสคีมา)
-    await client.query(
-      `INSERT INTO admin_actions (admin_id, action_type, target_type, target_id)
-       VALUES ($1, 'unban_user'::admin_action_type, 'user'::report_target_type, $2)`,
-      [adminId, userId]
-    );
-
-    await client.query("COMMIT");
+    const alreadyNormal = user.status === "ACTIVE";
 
     if (!alreadyNormal) {
-      await createNotification(pool, {
-        toUserId: userId,
-        type: 'unban',
-        message: 'Your account has been unbanned by an administrator.',
-        link: null,
+      await tx.user.update({
+        where: { id: userId },
+        data: { status: "ACTIVE" },
       });
     }
 
-    return res.status(200).json({
-      success: true,
-      data: { user_id: userId, user_state: 'normal' },
-      alreadyNormal
+    await tx.adminAction.create({
+      data: {
+        adminId,
+        actionType: "UNBAN_USER",
+        targetType: "USER",
+        targetId: userId,
+      },
     });
-  } catch (e) {
-    try { await client.query("ROLLBACK"); } catch (_) {}
-    next(e);
-  } finally {
-    client.release();
+
+    return { alreadyNormal };
+  });
+
+  if (!result.alreadyNormal) {
+    await createNotification(null, {
+      toUserId: userId,
+      type: "unban",
+      message: "Your account has been unbanned by an administrator.",
+      link: null,
+    });
   }
-};
+
+  return sendSuccess(res, {
+    data: { user_id: userId, user_state: "normal" },
+    alreadyNormal: result.alreadyNormal,
+  });
+});
 
 /**
  * @desc    Admin: view all user account reports
  * @route   GET /api/v1/admins/accounts?status=pending|accepted|rejected
  * @access  Admin
  */
-exports.adminGetAccountReports = async (req, res, next) => {
-  const pool = req.app.locals.pool;
-  try {
-    const { status } = req.query;
-    const validStatuses = ["pending", "accepted", "rejected"];
-    const conditions = [`r.target_type = 'user'`];
+exports.adminGetAccountReports = asyncHandler(async (req, res) => {
+  requireAdminId(req);
+  const status = normalizeStatus(req.query.status);
+  const { rows, total } = await listReports(
+    "USER",
+    status,
+    {
+      reporter: true,
+      targetUser: true,
+    },
+    serializeAccountReport
+  );
 
-    if (status && validStatuses.includes(status)) {
-      conditions.push(`r.status = '${status}'`);
-    }
-
-    const whereClause = `WHERE ${conditions.join(" AND ")}`;
-
-    const sql = `
-      SELECT 
-        r.report_id, r.reporter_id, r.target_id, r.reason, r.status, r.created_at,
-        u1.display_name AS reporter_name,
-        u2.display_name AS target_name,
-        u2.user_name     AS target_username
-      FROM reports r
-      JOIN users u1 ON u1.user_id = r.reporter_id
-      JOIN users u2 ON u2.user_id = r.target_id
-      ${whereClause}
-      ORDER BY r.created_at DESC;
-    `;
-
-    const { rows } = await pool.query(sql);
-    return res.status(200).json({ success: true, count: rows.length, data: rows });
-  } catch (err) {
-    next(err);
-  }
-};
-
+  return sendSuccess(res, { count: rows.length, total, data: rows });
+});
 
 /**
  * @desc    Admin: view all post reports
  * @route   GET /api/v1/admins/posts?status=pending|accepted|rejected
  * @access  Admin
  */
-exports.adminGetPostReports = async (req, res, next) => {
-  const pool = req.app.locals.pool;
-  try {
-    const { status } = req.query;
-    const validStatuses = ["pending", "accepted", "rejected"];
-    const conditions = [`r.target_type = 'post'`];
+exports.adminGetPostReports = asyncHandler(async (req, res) => {
+  requireAdminId(req);
+  const status = normalizeStatus(req.query.status);
+  const { rows, total } = await listReports(
+    "POST",
+    status,
+    {
+      reporter: true,
+      targetPost: {
+        include: { author: true },
+      },
+    },
+    serializePostReport
+  );
 
-    if (status && validStatuses.includes(status)) {
-      conditions.push(`r.status = '${status}'`);
-    }
-
-    const whereClause = `WHERE ${conditions.join(" AND ")}`;
-
-    const sql = `
-      SELECT 
-        r.report_id, r.reporter_id, r.target_id, r.reason, r.status, r.created_at,
-        u1.display_name AS reporter_name,
-        p.title AS post_title,
-        u2.display_name AS post_owner_name,
-        u2.user_name     AS post_owner_username
-
-      FROM reports r
-      JOIN users u1 ON u1.user_id = r.reporter_id
-      JOIN posts p ON p.post_id = r.target_id
-      JOIN users u2 ON u2.user_id = p.user_id
-      ${whereClause}
-      ORDER BY r.created_at DESC;
-    `;
-
-    const { rows } = await pool.query(sql);
-    return res.status(200).json({ success: true, count: rows.length, data: rows });
-  } catch (err) {
-    next(err);
-  }
-};
-
+  return sendSuccess(res, { count: rows.length, total, data: rows });
+});
 
 /**
  * @desc    Admin: view all comment reports
  * @route   GET /api/v1/admins/comments?status=pending|accepted|rejected
  * @access  Admin
  */
-exports.adminGetCommentReports = async (req, res, next) => {
-  const pool = req.app.locals.pool;
-  try {
-    const { status } = req.query;
-    const validStatuses = ["pending", "accepted", "rejected"];
-    const conditions = [`r.target_type = 'comment'`];
+exports.adminGetCommentReports = asyncHandler(async (req, res) => {
+  requireAdminId(req);
+  const status = normalizeStatus(req.query.status);
+  const { rows, total } = await listReports(
+    "COMMENT",
+    status,
+    {
+      reporter: true,
+      targetComment: {
+        include: { author: true },
+      },
+    },
+    serializeCommentReport
+  );
 
-    if (status && validStatuses.includes(status)) {
-      conditions.push(`r.status = '${status}'`);
-    }
-
-    const whereClause = `WHERE ${conditions.join(" AND ")}`;
-
-    const sql = `
-      SELECT 
-        r.report_id, r.reporter_id, r.target_id, r.reason, r.status, r.created_at,
-        u1.display_name AS reporter_name,
-        c.text AS comment_text,
-        u2.display_name AS comment_owner_name,
-        u2.user_name     AS comment_owner_username
-      FROM reports r
-      JOIN users u1 ON u1.user_id = r.reporter_id
-      JOIN comments c ON c.comment_id = r.target_id
-      JOIN users u2 ON u2.user_id = c.user_id
-      ${whereClause}
-      ORDER BY r.created_at DESC;
-    `;
-
-    const { rows } = await pool.query(sql);
-    return res.status(200).json({ success: true, count: rows.length, data: rows });
-  } catch (err) {
-    next(err);
-  }
-};
+  return sendSuccess(res, { count: rows.length, total, data: rows });
+});
 
 /**
  * @desc    Admin: update report status (accept / reject)
  * @route   PATCH /api/v1/reports/:id/status
  * @access  Admin
  */
-exports.adminUpdateReportStatus = async (req, res, next) => {
-  const pool = req.app.locals.pool;
-  try {
-    // รองรับได้ทั้ง :id และ :reportId
-    const idParam = req.params.id ?? req.params.reportId ?? req.params.report_id;
-    const { status } = req.body;
+exports.adminUpdateReportStatus = asyncHandler(async (req, res) => {
+  const adminId = requireAdminId(req);
+  const reportId = readStringId(
+    req.params.id ?? req.params.reportId ?? req.params.report_id,
+    "reportId"
+  );
+  const status = normalizeStatus(req.body.status, { required: true });
 
-    const validStatuses = ["pending", "accepted", "rejected"];
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({ success: false, message: "Invalid status" });
-    }
-
-    const reportId = Number.parseInt(idParam, 10);
-    if (!Number.isInteger(reportId) || reportId <= 0) {
-      return res.status(400).json({ success: false, message: "Invalid report id" });
-    }
-
-    const adminId = req.admin?.admin_id;
-    if (!adminId) {
-      return res.status(403).json({ success: false, message: 'Admin authentication required' });
-    }
-
-    const sql = `
-      UPDATE reports
-      SET status = $1::report_status,
-          admin_id = COALESCE($3, admin_id)
-      WHERE report_id = $2
-      RETURNING report_id, target_type, target_id, status, admin_id;
-    `;
-    const { rows } = await pool.query(sql, [status, reportId, adminId]);
-
-    if (rows.length === 0) {
-      return res.status(404).json({ success: false, message: "Report not found" });
-    }
-
-    return res.status(200).json({
-      success: true,
-      message: `Report #${reportId} updated to '${status}'`,
-      data: rows[0],
+  const updated = await prisma.$transaction(async (tx) => {
+    const report = await tx.report.findUnique({
+      where: { id: reportId },
+      select: {
+        id: true,
+        targetType: true,
+        targetUserId: true,
+        targetPostId: true,
+        targetCommentId: true,
+      },
     });
-  } catch (err) {
-    next(err);
-  }
-};
+
+    if (!report) {
+      throw createError(404, "REPORT_NOT_FOUND", "Report not found");
+    }
+
+    const nextReport = await tx.report.update({
+      where: { id: reportId },
+      data: {
+        status,
+        reviewerId: adminId,
+        reviewedAt: new Date(),
+      },
+    });
+
+    await tx.adminAction.create({
+      data: {
+        adminId,
+        actionType: "RESOLVE_REPORT",
+        targetType: report.targetType,
+        targetId: reportTargetId(report) || report.id,
+      },
+    });
+
+    return nextReport;
+  });
+
+  const statusLabel = legacyStatus(updated.status);
+
+  return sendSuccess(res, {
+    message: `Report #${reportId} updated to '${statusLabel}'`,
+    data: {
+      report_id: updated.id,
+      target_type: targetTypeToLegacy(updated.targetType),
+      target_id: reportTargetId(updated),
+      status: statusLabel,
+      admin_id: updated.reviewerId,
+    },
+  });
+});

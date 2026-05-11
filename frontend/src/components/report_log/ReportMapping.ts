@@ -1,11 +1,10 @@
 import { Report } from "./ReportType";
 import { ApiPostReportResponse, ApiAccountReportResponse, ApiCommentReportResponse } from "./ReportType";
-import { userService } from "@/utils/userService";
 
 function mapPostReport(item: ApiPostReportResponse['data'][0]): Report {
   return {
     id: item.report_id,
-    reportNumber: parseInt(item.report_id),
+    reportNumber: item.report_id,
     reportedBy: item.reporter_name,
     reason: item.reason,
     reportedDate: new Date(item.created_at).toLocaleDateString('en-GB'),
@@ -27,7 +26,7 @@ function mapPostReport(item: ApiPostReportResponse['data'][0]): Report {
 function mapCommentReport(item: ApiCommentReportResponse['data'][0]): Report {
   return {
     id: item.report_id,
-    reportNumber: parseInt(item.report_id),
+    reportNumber: item.report_id,
     reportedBy: item.reporter_name,
     reason: item.reason,
     reportedDate: new Date(item.created_at).toLocaleDateString('en-GB'),
@@ -49,7 +48,7 @@ function mapCommentReport(item: ApiCommentReportResponse['data'][0]): Report {
 function mapAccountReport(item: ApiAccountReportResponse['data'][0]): Report {
   return {
     id: item.report_id,
-    reportNumber: parseInt(item.report_id),
+    reportNumber: item.report_id,
     reportedBy: item.reporter_name,
     reason: item.reason,
     reportedDate: new Date(item.created_at).toLocaleDateString('en-GB'),

@@ -8,7 +8,7 @@ interface BannedUserProps {
   nickname: string;
   bannedDate: string;
   profileImage: string;
-  userId: number;
+  userId: string;
 }
 
 const BannedUser: React.FC<BannedUserProps> = ({
@@ -51,7 +51,7 @@ const BannedUser: React.FC<BannedUserProps> = ({
   const handleUnban = async () => {
     setIsUnbanning(true);
     try {
-      const res = await fetch(`${BASE}/api/v1/admins/users/${userId}/unban`, {
+      const res = await fetch(`${BASE}/api/v1/admins/users/${encodeURIComponent(userId)}/unban`, {
         method: 'PATCH',
         credentials: 'include',
         headers: {

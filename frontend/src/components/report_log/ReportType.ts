@@ -1,6 +1,6 @@
 export interface Report {
   id: string;
-  reportNumber: number;
+  reportNumber: string;
   reportedBy: string;
   reason: string;
   reportedDate: string;

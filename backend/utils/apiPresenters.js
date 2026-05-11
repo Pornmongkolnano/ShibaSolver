@@ -177,7 +177,13 @@ function publicPost(post, {
     tags: presentTags(post.tags),
     likes: summary.likes,
     dislikes: summary.dislikes,
+    stats: {
+      likes: summary.likes,
+      dislikes: summary.dislikes,
+    },
     my_rating: summary.my_rating,
+    liked_by_user: summary.my_rating === "like",
+    disliked_by_user: summary.my_rating === "dislike",
   };
 
   if (bookmarkedAt !== undefined) {
