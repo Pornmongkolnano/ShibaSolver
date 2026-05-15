@@ -53,6 +53,7 @@ describe("OpenAPI contract", () => {
 
   test("documents current runtime routes and response contracts", () => {
     expect(spec.info.contact.url).toBe("https://github.com/Pornmongkolnano/ShibaSolver");
+    expect(spec.paths).toHaveProperty("/health");
     expect(spec.paths).toHaveProperty("/api/v1/ratings/check");
     expect(
       spec.paths["/api/v1/admins/accounts/{reportId}/status"].patch.responses[200].content[

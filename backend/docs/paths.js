@@ -13,10 +13,31 @@ const errorResponseRef = { $ref: '#/components/schemas/ErrorResponse' };
 module.exports = {
   '/': {
     get: {
-      tags: ['Feed'],
+      tags: ['System'],
       summary: 'Root welcome message',
       responses: {
         200: jsonResponse('Server is reachable', baseResponseRef),
+      },
+    },
+  },
+
+  '/health': {
+    get: {
+      tags: ['System'],
+      summary: 'Health check for deployment platforms',
+      description:
+        'Verifies that the API process is running and can query PostgreSQL. Use this as the backend health check path on Render.',
+      responses: {
+        200: jsonResponse('API and database are healthy', {
+          type: 'object',
+          required: ['success', 'status', 'service'],
+          properties: {
+            success: { type: 'boolean', example: true },
+            status: { type: 'string', example: 'ok' },
+            service: { type: 'string', example: 'shibasolver-api' },
+          },
+        }),
+        503: jsonResponse('Database connectivity is unavailable', errorResponseRef),
       },
     },
   },

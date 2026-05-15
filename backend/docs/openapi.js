@@ -58,6 +58,7 @@ module.exports = {
     },
   ],
   tags: [
+    { name: 'System', description: 'Operational readiness and API metadata' },
     { name: 'Auth', description: 'End-user authentication' },
     { name: 'Admin Auth', description: 'Admin authentication' },
     { name: 'Admins', description: 'Administrative actions' },

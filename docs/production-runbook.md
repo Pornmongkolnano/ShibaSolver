@@ -52,3 +52,19 @@ npm run dev
 - Run Prisma migrations before exposing the app: `cd backend && npm run prisma:migrate`.
 - Create the first admin account: `cd backend && npm run admin:create`.
 - Deploy backend first, verify `GET /health`, then set frontend API URL to the backend origin.
+
+## Backend Health Check
+
+Use `/health` as the Render health check path. The endpoint returns `200` only after the API can run `SELECT 1` against PostgreSQL.
+
+Expected healthy response:
+
+```json
+{
+  "success": true,
+  "status": "ok",
+  "service": "shibasolver-api"
+}
+```
+
+If the database pool is missing or the query fails, the endpoint returns `503` with the standard error envelope. Treat that as a deploy blocker before pointing the frontend at the backend.
