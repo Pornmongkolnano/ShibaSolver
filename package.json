@@ -10,8 +10,8 @@
     "build": "npm run build --prefix frontend",
     "test": "npm test --prefix backend",
     "db:validate": "DATABASE_URL=postgresql://user:password@localhost:5432/shibasolver npm run prisma:validate --prefix backend",
-    "audit": "npm audit --prefix backend --omit=dev --audit-level=high && npm audit --prefix frontend --omit=dev --audit-level=high",
-    "check": "npm run db:validate && npm run lint && npm run build && npm run test"
+    "audit": "npm audit --prefix backend --omit=dev --audit-level=moderate && npm audit --prefix frontend --omit=dev --audit-level=moderate",
+    "check": "npm run db:validate && npm run audit && npm run lint && npm run build && npm run test"
   },
   "engines": {
     "node": ">=20"
